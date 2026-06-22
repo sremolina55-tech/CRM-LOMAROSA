@@ -561,7 +561,7 @@ async function xiruxProxy(endpoint,body,method="POST",format="json",xmlRoot="Roo
   const r=await fetch(EDGE_XIRUX,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+KEY},body:JSON.stringify(payload)});
   return await r.json();
 }
-const XIRUX_TERCERO_BASE="https://web.cloudxirux.com:35619/app2";
+const XIRUX_TERCERO_BASE="https://web.cloudxirux.com:35619/app";
 async function subirClienteXirux(cid){
   const btn=$("xirux-cl-btn");
   if(btn){btn.disabled=true;btn.textContent="Subiendo...";}
