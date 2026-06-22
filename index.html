@@ -410,7 +410,7 @@ const th=`<div class="tabs"><button class="${pedTab===1?"act":""}" onclick="pedT
 if(pedTab===1){ct=`<div class="tab-body">
 <div style="background:${isVD?"#e3f2fd":"#e8f5e9"};padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:13px;color:${isVD?"#1565c0":"#2e7d32"}">✓ Visita registrada — <strong>${isVD?"🚚 Venta directa":"📋 Pedido normal"}</strong> para ${clName}</div>
 <div class="grid g2"><div class="field"><label><span class="req">* </span>Cliente</label><div id="ss-ped-cl"></div></div><div class="field"><label>Punto de Venta</label><select id="pd-suc"><option value="">Sede principal</option></select></div></div>
-<div class="grid g${isTAT?2:3}"><div class="field"><label>Vendedor</label><input value="${U.nombre_display}" disabled style="opacity:.6;background:#f5f5f5"></div>${!isTAT?`<div class="field"><label><span class="req">* </span>Planta</label><select id="pd-op"><option value="">Selecciona...</option><option value="2100" ${_pedData.op==="2100"?"selected":""}>2100 – Galán</option><option value="2101" ${_pedData.op==="2101"?"selected":""}>2101 – BLE</option></select></div>`:""}<div class="field"><label>Fecha Entrega</label><input type="date" id="pd-fe" value="${_pedData.fe||today()}"></div></div>
+<div class="grid g${isTAT?2:3}"><div class="field"><label>Vendedor</label><input value="${U.nombre_display}" disabled style="opacity:.6;background:#f5f5f5"></div>${!isTAT?`<div class="field"><label><span class="req">* </span>Planta</label><select id="pd-op"><option value="">Selecciona...</option><option value="2110" ${_pedData.op==="2110"?"selected":""}>2110 – Galán</option><option value="2120" ${_pedData.op==="2120"?"selected":""}>2120 – BLE</option></select></div>`:""}<div class="field"><label>Fecha Entrega</label><input type="date" id="pd-fe" value="${_pedData.fe||today()}"></div></div>
 <div class="field"><label>Observaciones</label><textarea id="pd-obs">${_pedData.obs||""}</textarea></div>
 <div class="fa"><button class="btn bp" onclick="goTab2()">Siguiente → Detalle</button></div></div>`;
 setTimeout(()=>{_ssPedCl=ssCreate("ss-ped-cl",clOpts,"Buscar...",v=>{_pedData.cl=v;ldSuc()});_ssPedCl.setValue(selCl);ldSuc()},30);
@@ -554,10 +554,13 @@ catch(e){showT("Error: "+e.message,"error");if(statusEl)statusEl.innerHTML='<div
 // ═══ XIRUX ERP INTEGRATION ═══
 const DIVIPOLA={"Bogotá D.C.":"11001","Bogotá":"11001","Soacha":"25754","Facatativá":"25269","Zipaquirá":"25899","Chía":"25175","Fusagasugá":"25290","Girardot":"25307","Madrid":"25430","Mosquera":"25473","Funza":"25286","Cajicá":"25126","Cota":"25214","La Calera":"25377","Tenjo":"25799","Sopó":"25758","Tocancipá":"25817","Sibaté":"25743","Villeta":"25873","Medellín":"05001","Bello":"05088","Itagüí":"05360","Envigado":"05266","Rionegro":"05615","Sabaneta":"05631","Barranquilla":"08001","Soledad":"08758","Cartagena":"13001","Tunja":"15001","Duitama":"15238","Sogamoso":"15759","Manizales":"17001","Valledupar":"20001","Montería":"23001","Neiva":"41001","Villavicencio":"50001","Cúcuta":"54001","Armenia":"63001","Pereira":"66001","Bucaramanga":"68001","Floridablanca":"68276","Ibagué":"73001","Cali":"76001","Palmira":"76520"};
 
-async function xiruxProxy(endpoint,body,method="POST",format="json",xmlRoot="Root"){
-  const r=await fetch(EDGE_XIRUX,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+KEY},body:JSON.stringify({endpoint,method,body,format,xmlRoot})});
+async function xiruxProxy(endpoint,body,method="POST",format="json",xmlRoot="Root",baseUrl){
+  const payload={endpoint,method,body,format,xmlRoot};
+  if(baseUrl)payload.baseUrl=baseUrl;
+  const r=await fetch(EDGE_XIRUX,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+KEY},body:JSON.stringify(payload)});
   return await r.json();
 }
+const XIRUX_TERCERO_BASE="https://web.cloudxirux.com:35619/app2";
 async function subirClienteXirux(cid){
   const btn=$("xirux-cl-btn");
   if(btn){btn.disabled=true;btn.textContent="Subiendo...";}
@@ -573,34 +576,38 @@ async function subirClienteXirux(cid){
   const tipoDoc=tipoMap[cl.tipo_documento]||"CC";
   const esNIT=tipoDoc==="NI";
   const ciudadCode=DIVIPOLA[cl.ciudad]||"11001";
-  const ciudad="CO"+ciudadCode;
   const partes=(cl.nombre||"").trim().split(/\s+/);
+  const n=partes.length;
   const body={
     CodTercero:numDoc,
+    FechaIngreso:today(),
     NumDoc:numDoc,
     TipoDoc:tipoDoc,
+    Nombre:cl.nombre,
+    RazonSocial:cl.nombre,
+    SectorDane:"1",
     Direccion:cl.direccion,
-    Ciudad:ciudad,
+    Ciudad:ciudadCode,
+    Barrio:cl.barrio||"000001",
     Correo:cl.correo_electronico,
     ClaseA:String(cl.clasificacion_a),
+    ViaDespacho:"0001",
+    CondicionPago:cl.xirux_condpago||"1010",
+    AgeIva:cl.xirux_agente_iva||"0004",
+    ActIca:cl.xirux_actividad_ica||"0000",
+    Autoretenedor:cl.xirux_autoretenedor||"N",
+    SujetoRetFte:cl.xirux_sujeto_retfte||"S",
+    SujetoCree:cl.xirux_sujeto_cree||"N",
     EsCliente:"S",
-    EsProveedor:"N",
-    EsVendedor:"N"
+    EsVendedor:"N",
+    NumEmpleados:"1"
   };
+  if(cl.xirux_agente_ica)body.AgeIca=cl.xirux_agente_ica;
   if(cl.telefono)body.Telefono=cl.telefono;
   if(cl.celular)body.Celular=cl.celular;
-  if(cl.xirux_agente_iva)body.AgeIva=cl.xirux_agente_iva;
-  if(cl.xirux_agente_ica)body.AgeIca=cl.xirux_agente_ica;
-  if(cl.xirux_actividad_ica)body.ActIca=cl.xirux_actividad_ica;
-  if(cl.xirux_condpago)body.CondicionPago=cl.xirux_condpago;
-  const codLisPre=cl.crm_listas_precio?.codigo_xirux;
+  const codLisPre=cl.xirux_lista_precio||cl.crm_listas_precio?.codigo_xirux;
   if(codLisPre)body.CodLisPre=String(codLisPre);
-  const pv={CodPV:"1",Nombre:cl.nombre,Direccion:cl.direccion,Ciudad:ciudad,Correo:cl.correo_electronico};
-  if(cl.celular)pv.Celular=cl.celular;else if(cl.telefono)pv.Telefono=cl.telefono;
-  body.PuntoVenta=[pv];
-  if(esNIT){body.Nombre=cl.nombre;body.RazonSocial=cl.nombre;}
-  else{
-    const n=partes.length;
+  if(!esNIT){
     body.PriNombre=partes[0]||"";
     if(n===1){body.PriApell=partes[0]||"";}
     else if(n===2){body.PriApell=partes[1];}
@@ -609,7 +616,7 @@ async function subirClienteXirux(cid){
   }
   console.log("PAYLOAD TERCERO:",JSON.stringify(body));
   try{
-    const res=await xiruxProxy("/api/Definiciones/Tercero",body);
+    const res=await xiruxProxy("/api/Definiciones/Tercero",body,"POST","json","Root",XIRUX_TERCERO_BASE);
     if(res.Valido===true){
       await api("crm_clientes","PATCH",{xirux_sync:true},"?id=eq."+cid);
       const idx=clientes.findIndex(c=>c.id===cid);if(idx>=0)clientes[idx].xirux_sync=true;
@@ -638,13 +645,14 @@ async function diagXirux(){
     const test={
       CodTercero:"CRMTEST01",NumDoc:"CRMTEST01",TipoDoc:"CC",
       PriNombre:"PRUEBA",PriApell:"CRM",
-      Direccion:"Calle 1 #1-1",Ciudad:"CO11001",
+      Direccion:"Calle 1 #1-1",Ciudad:"11001",
       Celular:"3000000001",Correo:"prueba@crmtest.co",
-      ClaseA:"1007",EsCliente:"S",
-      PuntoVenta:[{CodPV:"1",Nombre:"PRUEBA CRM",Direccion:"Calle 1 #1-1",Ciudad:"CO11001",Celular:"3000000001",Correo:"prueba@crmtest.co"}]
+      ClaseA:"1007",ViaDespacho:"0001",CondicionPago:"1010",AgeIva:"0004",ActIca:"0000",
+      Autoretenedor:"N",SujetoRetFte:"S",SujetoCree:"N",EsCliente:"S",NumEmpleados:"1",
+      PuntoVenta:[{CodPV:"1",FechaIngreso:new Date().toISOString().split("T")[0],Nombre:"PRUEBA CRM",Direccion:"Calle 1 #1-1",Ciudad:"11001",Celular:"3000000001",Correo:"prueba@crmtest.co"}]
     };
     console.log("TEST PAYLOAD:",JSON.stringify(test));
-    const res=await xiruxProxy("/api/Definiciones/Tercero",test);
+    const res=await xiruxProxy("/api/Definiciones/Tercero",test,"POST","json","Root",XIRUX_TERCERO_BASE);
     console.log("TEST RESP:",JSON.stringify(res));
     const det=res.Data?.[0]?.Detalle||"";
     showT(res.Valido?"✓ Conexión OK":"Error: "+(res.Mensaje||"?")+(det?" — "+det:""),res.Valido?"success":"error");
@@ -671,7 +679,7 @@ async function enviarXiruxPed(pid){
     Tercero:tercero,
     Vendedor:vendedor,
     PuntoVenta:ped.crm_sucursales?.codigo_sucursal||"1",
-    Detalle:det.map((d,i)=>{const isTAT=U.rol==="admin"||TAT_TEAM.includes(U.usuario);const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:isTAT?d.valor_unitario:0};if(d.descuento_pct)it.PorDesc=d.descuento_pct;return it;})
+    Detalle:det.map((d,i)=>{const esTAT=(ped.operacion||"2130")==="2130";const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:esTAT?d.valor_unitario:0};if(d.descuento_pct)it.PorDesc=d.descuento_pct;return it;})
   };
   if(ped.observaciones)body.Observacion=ped.observaciones;
   try{
@@ -954,6 +962,10 @@ ${U.rol!=="vendedor"?`<div class="field"><label>Vendedor</label><select id="cf-v
 <div class="field"><label>Actividad ICA</label><div class="psr"><input id="cf-xact-i" placeholder="🔍 Código o nombre..." value="${xactDisplay}" oninput="filtActIca(this.value)" autocomplete="off"><input type="hidden" id="cf-xact" value="${xactVal}"><div class="psr-r" id="cf-xact-r"></div></div></div></div>
 <div class="grid g1">
 <div class="field"><label>Condición pago</label><select id="cf-xcop"><option value="">Sel.</option>${xcopO}</select></div></div>
+<div class="grid g3">
+<div class="field"><label>Autoretenedor</label><select id="cf-xaut"><option value="N" ${(c?.xirux_autoretenedor||"N")==="N"?"selected":""}>N – No</option><option value="S" ${c?.xirux_autoretenedor==="S"?"selected":""}>S – Sí</option></select></div>
+<div class="field"><label>Sujeto Ret. Fte</label><select id="cf-xrft"><option value="S" ${(c?.xirux_sujeto_retfte||"S")==="S"?"selected":""}>S – Sí</option><option value="N" ${c?.xirux_sujeto_retfte==="N"?"selected":""}>N – No</option></select></div>
+<div class="field"><label>Sujeto CREE</label><select id="cf-xcre"><option value="N" ${(c?.xirux_sujeto_cree||"N")==="N"?"selected":""}>N – No</option><option value="S" ${c?.xirux_sujeto_cree==="S"?"selected":""}>S – Sí</option></select></div></div>
 <div class="fa"><button class="btn bs" onclick="showView('clientes')">Cancelar</button>${c?`<button class="btn bsm" style="background:#1976d2;color:#fff" onclick="renderActForm(null,null,'${c.id}','')">📅 Programar</button>`:""}${c?`${c.xirux_sync?'<span style="font-size:12px;font-weight:700;color:#4caf50;margin-right:4px">✓ En Xirux</span>':''}<button class="btn" id="xirux-cl-btn" style="background:#5c6bc0;color:#fff" onclick="subirClienteXirux('${c.id}')">⬆ Subir a Xirux</button><button class="btn bsm" style="background:#e65100;color:#fff" onclick="diagXirux()" title="Prueba conexión con datos mínimos hardcodeados">🔧 Diag</button>`:''} <button class="btn bp" id="cf-sv" onclick="sCl('${c?.id||""}')">${c?"Actualizar":"Guardar"}</button></div></div>
 ${c?`<div class="fc" style="margin-top:16px"><div class="st">📅 Actividades <button class="btn bsm" style="float:right;background:#1976d2;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:var(--ff)" onclick="renderActForm(null,null,'${c.id}','')">+ Programar</button></div><div id="cl-acts-list"><div class="empty">Cargando...</div></div></div>`:""}
 <div class="fc" style="margin-top:16px"><div class="st">📍 Puntos de venta (Sucursales) <button class="btn bp bsm" style="float:right" onclick="toggleNewSuc()">+ Agregar</button></div>
@@ -1036,7 +1048,7 @@ if(!eid&&$("cf-td")?.value==="13"&&cod.length>=5){
 const clExist=eid?clientes.find(c=>c.id===eid):null;
 const tieneCA=$("cf-clasa")?.value;const tieneLP=$("cf-lis")?.value;const celReal=cel&&cel!=="Sin registro";const telReal=tel&&tel!=="Sin registro";const emaReal=ema&&ema.includes("@");
 const perfilCompleto=tieneCA&&tieneLP&&celReal&&telReal&&emaReal;
-const p={codigo:cod,nombre:nom,tipo_documento:$("cf-td")?.value||"13",vendedor_id:vid||null,ciudad:ciu,barrio:$("cf-bar")?.value.trim()||null,direccion:dir,telefono:tel,celular:cel,correo_electronico:$("cf-ema")?.value.trim()||null,clasificacion_a:tieneCA||null,lista_precio_id:tieneLP||null,zona:$("cf-zon")?.value.trim()||"TAT",fecha_ingreso:today(),created_by:U.usuario,xirux_agente_iva:$("cf-xiva")?.value||null,xirux_agente_ica:$("cf-xica")?.value||null,xirux_actividad_ica:$("cf-xact")?.value||null,xirux_condpago:$("cf-xcop")?.value||null};
+const p={codigo:cod,nombre:nom,tipo_documento:$("cf-td")?.value||"13",vendedor_id:vid||null,ciudad:ciu,barrio:$("cf-bar")?.value.trim()||null,direccion:dir,telefono:tel,celular:cel,correo_electronico:$("cf-ema")?.value.trim()||null,clasificacion_a:tieneCA||null,lista_precio_id:tieneLP||null,zona:$("cf-zon")?.value.trim()||"TAT",fecha_ingreso:today(),created_by:U.usuario,xirux_agente_iva:$("cf-xiva")?.value||null,xirux_agente_ica:$("cf-xica")?.value||null,xirux_actividad_ica:$("cf-xact")?.value||null,xirux_condpago:$("cf-xcop")?.value||null,xirux_autoretenedor:$("cf-xaut")?.value||null,xirux_sujeto_retfte:$("cf-xrft")?.value||null,xirux_sujeto_cree:$("cf-xcre")?.value||null};
 if(eid&&clExist?.prospecto_incompleto)p.prospecto_incompleto=!perfilCompleto;
 const btn=$("cf-sv");btn.disabled=true;try{if(eid){await api("crm_clientes","PATCH",p,"?id=eq."+eid);showT(perfilCompleto&&clExist?.prospecto_incompleto?"✓ Perfil completado — ya puede hacer pedidos":"Actualizado")}else{const res=await api("crm_clientes","POST",p);if(res&&res[0]&&_tempSucs.length){for(const s of _tempSucs){try{await api("crm_sucursales","POST",{cliente_id:res[0].id,codigo_sucursal:s.codigo_sucursal,nombre:s.nombre,direccion:s.direccion,ciudad:s.ciudad,activo:true})}catch(ex){}}}_tempSucs=[];showT("Creado"+(res&&res[0]&&_tempSucs.length?" con sucursales":""))}showView("clientes")}catch(e){showT(e.message.includes("duplicate")?"Ya existe":"Error: "+e.message,"error")}finally{btn.disabled=false}}
 
@@ -1089,7 +1101,7 @@ async function exCl(){
         "","","","",
         c.correo_electronico||"",
         xiva,xica,xact,
-        "N","N","N","N","S","N","N",
+        c.xirux_autoretenedor||"N",c.xirux_sujeto_retfte||"S",c.xirux_sujeto_cree||"N","N","S","N","N",
         xlp,xcop
       ];
     });
@@ -1102,8 +1114,8 @@ try{
   showT(cls.length+" clientes marcados como ✓ ERP");
 }catch(ex){showT("Error marcando ERP: "+ex.message,"error");}
 }catch(e){showT(e.message,"error")}}
-async function exPed(){const d=$("ex-pd").value,h=$("ex-ph").value;try{const pds=await api("crm_pedidos","GET",null,`?fecha=gte.${d}&fecha=lte.${h}&estado=in.(Pendiente,Venta directa)&select=*,crm_clientes(codigo),crm_vendedores(nit),crm_sucursales(codigo_sucursal)`)||[];if(!pds.length){showT("Sin pedidos pendientes","error");return}const hd=["Operacion","DocCruce","Tercero","PuntoVenta","Vendedor","Fecha","FechaEntrega","ViaDespacho","CondicionPago","Ciudad","Direccion","Tipo","Producto","Valor","Cantidad","PorDesc","Observaciones"];let rows=[];for(const p of pds){const det=await api("crm_pedido_detalle","GET",null,"?pedido_id=eq."+p.id+"&select=*,crm_productos(codigo)")||[];const fecha=p.fecha?p.fecha.split("-").reverse().join("/"):"";const fechaEnt=p.fecha_entrega?p.fecha_entrega.split("-").reverse().join("/"):"";det.forEach(d=>{rows.push(["2130",p.numero_pedido,p.crm_clientes?.codigo||"",p.crm_sucursales?.codigo_sucursal||"1",p.crm_vendedores?.nit||"",fecha,fechaEnt,"","","","","p",d.crm_productos?.codigo||"",d.valor_unitario,d.cantidad,d.descuento_pct||0,p.observaciones||""])})}dlXlsx(rows,hd,"PedidosMasivo_"+d+".xlsx");for(const p of pds){await api("crm_pedidos","PATCH",{estado:"Enviado a ERP"},"?id=eq."+p.id)}showT(pds.length+" pedidos → Enviado a ERP")}catch(e){showT(e.message,"error")}}
-async function exPedEnviados(){const d=$("ex-pd").value,h=$("ex-ph").value;try{const pds=await api("crm_pedidos","GET",null,"?fecha=gte."+d+"&fecha=lte."+h+"&estado=eq.Enviado a ERP&select=*,crm_clientes(codigo),crm_vendedores(nit),crm_sucursales(codigo_sucursal)")||[];if(!pds.length){showT("Sin pedidos enviados en ese rango","error");return}const hd=["Operacion","DocCruce","Tercero","PuntoVenta","Vendedor","Fecha","FechaEntrega","ViaDespacho","CondicionPago","Ciudad","Direccion","Tipo","Producto","Valor","Cantidad","PorDesc","Observaciones"];let rows=[];for(const p of pds){const det=await api("crm_pedido_detalle","GET",null,"?pedido_id=eq."+p.id+"&select=*,crm_productos(codigo)")||[];const fecha=p.fecha?p.fecha.split("-").reverse().join("/"):"";const fechaEnt=p.fecha_entrega?p.fecha_entrega.split("-").reverse().join("/"):"";det.forEach(function(dl){rows.push(["2130",p.numero_pedido,p.crm_clientes?.codigo||"",p.crm_sucursales?.codigo_sucursal||"1",p.crm_vendedores?.nit||"",fecha,fechaEnt,"","","","","p",dl.crm_productos?.codigo||"",dl.valor_unitario,dl.cantidad,dl.descuento_pct||0,p.observaciones||""])})}dlXlsx(rows,hd,"PedidosEnviados_"+d+"_"+h+".xlsx");showT(pds.length+" pedidos descargados")}catch(e){showT(e.message,"error")}}
+async function exPed(){const d=$("ex-pd").value,h=$("ex-ph").value;try{const pds=await api("crm_pedidos","GET",null,`?fecha=gte.${d}&fecha=lte.${h}&estado=in.(Pendiente,Venta directa)&select=*,crm_clientes(codigo),crm_vendedores(nit),crm_sucursales(codigo_sucursal)`)||[];if(!pds.length){showT("Sin pedidos pendientes","error");return}const hd=["Operacion","DocCruce","Tercero","PuntoVenta","Vendedor","Fecha","FechaEntrega","ViaDespacho","CondicionPago","Ciudad","Direccion","Tipo","Producto","Valor","Cantidad","PorDesc","Observaciones"];let rows=[];for(const p of pds){const op=p.operacion||"2130";const esTAT=op==="2130";const det=await api("crm_pedido_detalle","GET",null,"?pedido_id=eq."+p.id+"&select=*,crm_productos(codigo)")||[];const fecha=p.fecha?p.fecha.split("-").reverse().join("/"):"";const fechaEnt=p.fecha_entrega?p.fecha_entrega.split("-").reverse().join("/"):"";det.forEach(function(dl){rows.push([op,p.numero_pedido,p.crm_clientes?.codigo||"",p.crm_sucursales?.codigo_sucursal||"1",p.crm_vendedores?.nit||"",fecha,fechaEnt,"","","","","p",dl.crm_productos?.codigo||"",esTAT?dl.valor_unitario:0,dl.cantidad,dl.descuento_pct||0,p.observaciones||""])})}dlXlsx(rows,hd,"PedidosMasivo_"+d+".xlsx");for(const p of pds){await api("crm_pedidos","PATCH",{estado:"Enviado a ERP"},"?id=eq."+p.id)}showT(pds.length+" pedidos → Enviado a ERP")}catch(e){showT(e.message,"error")}}
+async function exPedEnviados(){const d=$("ex-pd").value,h=$("ex-ph").value;try{const pds=await api("crm_pedidos","GET",null,"?fecha=gte."+d+"&fecha=lte."+h+"&estado=in.(Enviado a ERP)&select=*,crm_clientes(codigo),crm_vendedores(nit),crm_sucursales(codigo_sucursal)")||[];if(!pds.length){showT("Sin pedidos enviados en ese rango","error");return}const hd=["Operacion","DocCruce","Tercero","PuntoVenta","Vendedor","Fecha","FechaEntrega","ViaDespacho","CondicionPago","Ciudad","Direccion","Tipo","Producto","Valor","Cantidad","PorDesc","Observaciones"];let rows=[];for(const p of pds){const op=p.operacion||"2130";const esTAT=op==="2130";const det=await api("crm_pedido_detalle","GET",null,"?pedido_id=eq."+p.id+"&select=*,crm_productos(codigo)")||[];const fecha=p.fecha?p.fecha.split("-").reverse().join("/"):"";const fechaEnt=p.fecha_entrega?p.fecha_entrega.split("-").reverse().join("/"):"";det.forEach(function(dl){rows.push([op,p.numero_pedido,p.crm_clientes?.codigo||"",p.crm_sucursales?.codigo_sucursal||"1",p.crm_vendedores?.nit||"",fecha,fechaEnt,"","","","","p",dl.crm_productos?.codigo||"",esTAT?dl.valor_unitario:0,dl.cantidad,dl.descuento_pct||0,p.observaciones||""])})}dlXlsx(rows,hd,"PedidosEnviados_"+d+"_"+h+".xlsx");showT(pds.length+" pedidos descargados")}catch(e){showT(e.message,"error")}}
 
 $("l-user").addEventListener("keydown",e=>{if(e.key==="Enter")$("l-pass").focus()});$("l-pass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
 (function(){const s=localStorage.getItem("crm_s");if(s){try{U=JSON.parse(s);if(U&&U.id){enterApp();return}}catch(e){}}$("scr-login").style.display="flex"})();
@@ -2012,7 +2024,7 @@ function renderRutasUI(){
 }
 function setRutaTab(t){_rutaTab=t;renderRutasUI()}
 const RT_COL={ruta:'#c87820',entregada:'#4a9e6a',novedad:'#d44050',devuelta:'#888',pendiente:'#aaa'};
-const RT_LBL={ruta:'En ruta',entregada:'Entregada',novedad:'Novedad',devuelta:'Devuelta',pendiente:'Sin despachar'};
+const RT_LBL={ruta:'En ruta',entregada:'Entregada',novedad:'Novedad',devuelta:'Devuelta',pendiente:'En tránsito'};
 function renderRutasHoy(){
   const hoy=today(),rows=_rutaData.filter(r=>r.fecha===hoy);
   const s=$("rt-stats");if(!s)return;
@@ -2061,7 +2073,7 @@ function abrirRtModal(idx,cid){
   $('rt-m-sucursal').textContent=r.sucursal&&r.sucursal!==r.cliente?r.sucursal:'';
   $('rt-m-fecha').textContent=r.fecha;$('rt-m-rep').textContent=r.repartidor;
   $('rt-m-fac').textContent=(r.kgFac||'-')+' uds';$('rt-m-rec').textContent=r.kgRec!=null?(r.kgRec+' uds'):'-';
-  const ests={ruta:{ic:'🚚',txt:'En ruta',sub:'El repartidor aún no registra la entrega'},entregada:{ic:'✅',txt:'Entregada',sub:r.hora?'Registrada a las '+r.hora:'Confirmada'},novedad:{ic:'⚠️',txt:'Con novedad',sub:r.novDiff?'Diferencia: '+(r.novDiff>0?'+':'')+r.novDiff+' uds':'Pendiente'},devuelta:{ic:'↩️',txt:'Devuelta',sub:'Devuelta al punto'},pendiente:{ic:'📦',txt:'Sin despachar',sub:'Pendiente de salir'}};
+  const ests={ruta:{ic:'🚚',txt:'En ruta',sub:'El repartidor aún no registra la entrega'},entregada:{ic:'✅',txt:'Entregada',sub:r.hora?'Registrada a las '+r.hora:'Confirmada'},novedad:{ic:'⚠️',txt:'Con novedad',sub:r.novDiff?'Diferencia: '+(r.novDiff>0?'+':'')+r.novDiff+' uds':'Pendiente'},devuelta:{ic:'↩️',txt:'Devuelta',sub:'Devuelta al punto'},pendiente:{ic:'📦',txt:'En tránsito',sub:'El conductor aún no registra la entrega'}};
   const est=ests[r.estado]||ests.pendiente,col=RT_COL[r.estado]||'#aaa';
   $('rt-m-estado').style.cssText='border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;background:'+col+'22;border:1px solid '+col+'44';
   $('rt-m-estado').innerHTML=`<div style="font-size:24px">${est.ic}</div><div><div style="font-size:14px;font-weight:700">${est.txt}</div><div style="font-size:11px;margin-top:2px;opacity:.8">${est.sub}</div></div>`;
