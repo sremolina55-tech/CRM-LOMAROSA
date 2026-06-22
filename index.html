@@ -700,7 +700,7 @@ async function enviarXiruxPed(pid){
     Tercero:tercero,
     Vendedor:vendedor,
     PuntoVenta:ped.crm_sucursales?.codigo_sucursal||"1",
-    Detalle:det.map((d,i)=>{const esTAT=(ped.operacion||"2130")==="2130";const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:esTAT?d.valor_unitario:0};if(d.descuento_pct)it.PorDesc=d.descuento_pct;return it;})
+    Detalle:det.map((d,i)=>{const esTAT=(ped.operacion||"2130")==="2130";const dscPct=parseFloat(d.descuento_pct)||0;const netVal=dscPct>0?Math.round(d.valor_unitario*(100-dscPct)/100):d.valor_unitario;const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:esTAT?netVal:0};if(dscPct>0)it.PorDesc=dscPct;return it;})
   };
   if(ped.observaciones)body.Observacion=ped.observaciones;
   console.log("PAYLOAD XIRUX PEDIDO:",JSON.stringify(body));
