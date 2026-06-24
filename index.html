@@ -118,7 +118,6 @@ td{padding:10px 12px;border-bottom:1px solid #f0f0f0}tr{cursor:pointer}tr:hover 
 <div class="toast" id="toast"><span id="toast-msg"></span><button style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px" onclick="hideT()">×</button></div>
 <script>
 const SB="https://pqcgibsdewrrbukibubd.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxY2dpYnNkZXdycmJ1a2lidWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTQyMDQsImV4cCI6MjA5MDM3MDIwNH0.7WnJydoru0E_aOGkyMGxPgZXTAEVmu4KQwqPPM-W14A";
-const LIQ_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_WX1drnXd5dXo5sgT3UumT3XN-z3zy6Ng94FEpSQc6cujDhGO7a4tx1Xc43Q6hA/pub?output=csv&gid=474167704";
 let U=null,vendedores=[],tipologias=[],sectores=[],listasP=[],clientes=[],visitas=[],productos=[],pedidos=[],supIds=[],metas=[],prospectos=[],actividades=[],_dashAplzPend=[],_dashNovedades=[];
 let _agFecha="",_agMes="";
 let editingId=null,pedLineas=[],pedTab=1,_pedData={},_visClId=null,_tipoPed="normal",_clienteDescuentos={};
@@ -210,7 +209,6 @@ function buildNav(){
     {id:"g-prospectos",ic:"🎯",l:"Prospectos",subs:[{id:"prospectos",l:"Ver prospectos"},{id:"nuevo-prospecto",l:"Nuevo prospecto"}]},
     {single:true,id:"agenda",ic:"📅",l:"Agenda"},
     {single:true,id:"rutas",ic:"🚚",l:"Rutas"},
-    {single:true,id:"liquidacion",ic:"💰",l:"Liquidación"},
   ];
   $("snav").innerHTML=groups.map(g=>{
     if(g.single)return`<button onclick="showView('${g.id}')" id="nav-${g.id}">${g.ic} <span>${g.l}</span></button>`;
@@ -239,7 +237,7 @@ function showView(v){
     if(body&&!body.classList.contains("open")){body.classList.add("open");if(hdr)hdr.classList.add("open")}
     if(hdr)hdr.classList.add("grp-act");
   }
-  const V={dashboard:renderDash,informe:renderInforme,"nueva-visita":renderVisForm,visitas:renderVisList,pedidos:renderPedList,clientes:renderClList,"nuevo-cliente":()=>renderClForm(),exportar:renderExport,prospectos:renderProspList,"nuevo-prospecto":()=>renderProspForm(),mapa:renderMapa,agenda:renderAgenda,rutas:renderRutas,liquidacion:renderLiquidacion};
+  const V={dashboard:renderDash,informe:renderInforme,"nueva-visita":renderVisForm,visitas:renderVisList,pedidos:renderPedList,clientes:renderClList,"nuevo-cliente":()=>renderClForm(),exportar:renderExport,prospectos:renderProspList,"nuevo-prospecto":()=>renderProspForm(),mapa:renderMapa,agenda:renderAgenda,rutas:renderRutas};
   if(V[v])V[v]();window.scrollTo(0,0);
 }
 function vF(){if(U.rol==="vendedor")return"&vendedor_id=eq."+U.vendedor_id;if(U.rol==="lider"&&supIds.length)return"&vendedor_id=in.("+supIds.join(",")+")";return""}
@@ -1165,98 +1163,6 @@ try{
 }catch(e){showT(e.message,"error")}}
 async function exPed(){const d=$("ex-pd").value,h=$("ex-ph").value;try{const pds=await api("crm_pedidos","GET",null,`?fecha=gte.${d}&fecha=lte.${h}&estado=in.(Pendiente,Venta directa)&select=*,crm_clientes(codigo),crm_vendedores(nit),crm_sucursales(codigo_sucursal)`)||[];if(!pds.length){showT("Sin pedidos pendientes","error");return}const hd=["Operacion","DocCruce","Tercero","PuntoVenta","Vendedor","Fecha","FechaEntrega","ViaDespacho","CondicionPago","Ciudad","Direccion","Tipo","Producto","Valor","Cantidad","PorDesc","Observaciones"];let rows=[];for(const p of pds){const op=p.operacion||"2130";const esTAT=op==="2130";const det=await api("crm_pedido_detalle","GET",null,"?pedido_id=eq."+p.id+"&select=*,crm_productos(codigo)")||[];const fecha=p.fecha?p.fecha.split("-").reverse().join("/"):"";const fechaEnt=p.fecha_entrega?p.fecha_entrega.split("-").reverse().join("/"):"";det.forEach(function(dl){rows.push([op,p.numero_pedido,p.crm_clientes?.codigo||"",p.crm_sucursales?.codigo_sucursal||"1",p.crm_vendedores?.nit||"",fecha,fechaEnt,"","","","","p",dl.crm_productos?.codigo||"",esTAT?dl.valor_unitario:0,dl.cantidad,dl.descuento_pct||0,p.observaciones||""])})}dlXlsx(rows,hd,"PedidosMasivo_"+d+".xlsx");for(const p of pds){await api("crm_pedidos","PATCH",{estado:"Enviado a ERP"},"?id=eq."+p.id)}showT(pds.length+" pedidos → Enviado a ERP")}catch(e){showT(e.message,"error")}}
 async function exPedEnviados(){const d=$("ex-pd").value,h=$("ex-ph").value;try{const pds=await api("crm_pedidos","GET",null,"?fecha=gte."+d+"&fecha=lte."+h+"&estado=in.(Enviado a ERP)&select=*,crm_clientes(codigo),crm_vendedores(nit),crm_sucursales(codigo_sucursal)")||[];if(!pds.length){showT("Sin pedidos enviados en ese rango","error");return}const hd=["Operacion","DocCruce","Tercero","PuntoVenta","Vendedor","Fecha","FechaEntrega","ViaDespacho","CondicionPago","Ciudad","Direccion","Tipo","Producto","Valor","Cantidad","PorDesc","Observaciones"];let rows=[];for(const p of pds){const op=p.operacion||"2130";const esTAT=op==="2130";const det=await api("crm_pedido_detalle","GET",null,"?pedido_id=eq."+p.id+"&select=*,crm_productos(codigo)")||[];const fecha=p.fecha?p.fecha.split("-").reverse().join("/"):"";const fechaEnt=p.fecha_entrega?p.fecha_entrega.split("-").reverse().join("/"):"";det.forEach(function(dl){rows.push([op,p.numero_pedido,p.crm_clientes?.codigo||"",p.crm_sucursales?.codigo_sucursal||"1",p.crm_vendedores?.nit||"",fecha,fechaEnt,"","","","","p",dl.crm_productos?.codigo||"",esTAT?dl.valor_unitario:0,dl.cantidad,dl.descuento_pct||0,p.observaciones||""])})}dlXlsx(rows,hd,"PedidosEnviados_"+d+"_"+h+".xlsx");showT(pds.length+" pedidos descargados")}catch(e){showT(e.message,"error")}}
-
-
-// ══════════════════════════════════════════════════════
-// LIQUIDACIÓN — Google Sheets (hoja: liquidacion)
-// ══════════════════════════════════════════════════════
-let _liqAll=[];
-function _liqExcelFecha(s){const n=parseFloat(String(s).replace(',','.'));if(!n||n<40000)return null;const d=new Date(Date.UTC(1899,11,30)+Math.floor(n)*86400000);return d.toISOString().slice(0,7);}
-function _liqNum(s){return parseFloat(String(s||'').replace(',','.'))||0;}
-function _liqParseCSV(txt){const rows=[];let field='',fields=[],inQ=false;for(let i=0;i<txt.length;i++){const ch=txt[i];if(inQ){if(ch==='"'&&txt[i+1]==='"'){field+='"';i++;}else if(ch==='"'){inQ=false;}else{field+=ch;}}else{if(ch==='"'){inQ=true;}else if(ch===','||ch===';'){fields.push(field);field='';}else if(ch==='\n'){fields.push(field);rows.push(fields);fields=[];field='';}else if(ch!=='\r'){field+=ch;}}}if(field||fields.length)rows.push([...fields,field]);return rows;}
-async function loadLiquidacion(){
-  const r=await fetch("https://corsproxy.io/?"+encodeURIComponent(LIQ_URL));const txt=await r.text();
-  console.log("LIQ raw (primeras 300 chars):",txt.slice(0,300));
-  const all=_liqParseCSV(txt);
-  console.log("LIQ filas parseadas:",all.length,"primera fila:",all[0]);
-  const rows=[];
-  for(let i=1;i<all.length;i++){
-    const c=all[i];
-    if(c.length<10)continue;
-    const mes=_liqExcelFecha(c[2]);
-    if(!mes)continue;
-    rows.push({
-      factura:(c[0]||'').trim(),
-      mes,
-      nit:(c[3]||'').trim(),
-      cliente:(c[4]||'').trim(),
-      vendedor:(c[5]||'').trim(),
-      cod:(c[6]||'').trim(),
-      producto:(c[7]||'').trim(),
-      kg:_liqNum(c[8]),
-      valorNeto:_liqNum(c[9]),
-      valorFact:_liqNum(c[10]),
-      pctComision:_liqNum(c[13]),
-      comisionCalc:_liqNum(c[14]),
-      recaudoVenta:_liqNum(c[15]),
-      recaudoTotal:_liqNum(c[16]),
-      pctRecaudo:_liqNum(c[17]),
-      comisionPagar:_liqNum(c[18]),
-      canal:(c[20]||'').trim(),
-      vendedor2:(c[23]||'').trim(),
-    });
-  }
-  console.log("LIQ rows validos:",rows.length,"ejemplo:",rows[0]);
-  return rows;
-}
-async function renderLiquidacion(){
-  $("mc").innerHTML=`<div class="topbar"><h2>💰 Liquidación</h2></div><div class="empty">Cargando datos...</div>`;
-  try{
-    const all=await loadLiquidacion();
-    _liqAll=all;
-    const meses=[...new Set(all.map(r=>r.mes))].sort().reverse();
-    const mesAct=meses[0]||today().slice(0,7);
-    const myVend=vendedores.find(v=>v.id===U.vendedor_id)?.nombre||'';
-    renderLiquidacionUI(mesAct,myVend,U.rol==='admin','');
-  }catch(e){
-    $("mc").innerHTML=`<div class="topbar"><h2>💰 Liquidación</h2></div><div class="empty" style="color:var(--red)">Error cargando datos: ${e.message}</div>`;
-  }
-}
-function renderLiquidacionUI(mes,myVend,isAdmin,filtVend){
-  const vend=filtVend||(isAdmin?'':myVend);
-  let rows=_liqAll.filter(r=>r.mes===mes);
-  if(vend)rows=rows.filter(r=>normNom(r.vendedor).includes(normNom(vend))||normNom(r.vendedor2).includes(normNom(vend)));
-  const totalKg=rows.reduce((s,r)=>s+r.kg,0);
-  const totalNeto=rows.reduce((s,r)=>s+r.valorNeto,0);
-  const totalComision=rows.reduce((s,r)=>s+r.comisionPagar,0);
-  const pctRec=rows.length?rows.reduce((s,r)=>s+r.pctRecaudo,0)/rows.length:0;
-  const byVend={};
-  rows.forEach(r=>{
-    const k=r.vendedor||r.vendedor2||'Sin vendedor';
-    if(!byVend[k])byVend[k]={vendedor:k,kg:0,valorNeto:0,comision:0,recaudo:0,n:0};
-    byVend[k].kg+=r.kg;byVend[k].valorNeto+=r.valorNeto;byVend[k].comision+=r.comisionPagar;byVend[k].recaudo+=r.pctRecaudo;byVend[k].n++;
-  });
-  const vends=Object.values(byVend).sort((a,b)=>b.valorNeto-a.valorNeto);
-  const meses=[...new Set(_liqAll.map(r=>r.mes))].sort().reverse();
-  const allVends=[...new Set(_liqAll.map(r=>r.vendedor||r.vendedor2).filter(Boolean))].sort();
-  const mesOpts=meses.map(m=>`<option value="${m}"${m===mes?' selected':''}>${m}</option>`).join('');
-  const vendOpts=`<option value="">Todos</option>`+allVends.map(v=>`<option value="${v}"${v===vend?' selected':''}>${v}</option>`).join('');
-  $("mc").innerHTML=`
-  <div class="topbar"><h2>💰 Liquidación</h2></div>
-  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-    <select onchange="renderLiquidacionUI(this.value,'${myVend}',${isAdmin},'${vend}')" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-family:var(--ff)">${mesOpts}</select>
-    ${isAdmin?`<select onchange="renderLiquidacionUI('${mes}','${myVend}',true,this.value)" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);font-family:var(--ff)">${vendOpts}</select>`:`<span style="font-size:13px;font-weight:600;color:var(--muted)">${vend}</span>`}
-  </div>
-  <div class="stats">
-    <div class="stat"><div class="bar" style="background:var(--accent)"></div><div class="lb">Kg facturados</div><div class="vl">${totalKg.toLocaleString('es-CO',{maximumFractionDigits:1})}</div></div>
-    <div class="stat"><div class="bar" style="background:#4caf50"></div><div class="lb">Valor neto</div><div class="vl">${fmt(totalNeto)}</div></div>
-    <div class="stat"><div class="bar" style="background:#1976d2"></div><div class="lb">Comisión a pagar</div><div class="vl">${fmt(totalComision)}</div></div>
-    <div class="stat"><div class="bar" style="background:#ff9800"></div><div class="lb">% Recaudo prom.</div><div class="vl">${(pctRec*100).toFixed(1)}%</div></div>
-  </div>
-  <div class="tw"><table><thead><tr><th>Vendedor</th><th>Kg</th><th>Valor neto</th><th>Comisión</th><th>% Rec.</th></tr></thead><tbody>
-  ${vends.length?vends.map(v=>`<tr><td style="font-weight:600">${v.vendedor}</td><td>${v.kg.toLocaleString('es-CO',{maximumFractionDigits:1})}</td><td>${fmt(v.valorNeto)}</td><td style="color:var(--green);font-weight:700">${fmt(v.comision)}</td><td>${v.n?((v.recaudo/v.n)*100).toFixed(1)+'%':'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">Sin datos</td></tr>'}
-  </tbody></table></div>`;
-}
 
 $("l-user").addEventListener("keydown",e=>{if(e.key==="Enter")$("l-pass").focus()});$("l-pass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
 (function(){const s=localStorage.getItem("crm_s");if(s){try{U=JSON.parse(s);if(U&&U.id){enterApp();return}}catch(e){}}$("scr-login").style.display="flex"})();
