@@ -1001,6 +1001,8 @@ ${U.rol!=="vendedor"?`<div class="field"><label>Vendedor</label><select id="cf-v
 <div class="field"><label>Sujeto CREE</label><select id="cf-xcre"><option value="N" ${(c?.xirux_sujeto_cree||"N")==="N"?"selected":""}>N – No</option><option value="S" ${c?.xirux_sujeto_cree==="S"?"selected":""}>S – Sí</option></select></div></div>
 <div class="fa"><button class="btn bs" onclick="showView('clientes')">Cancelar</button>${c?`<button class="btn bsm" style="background:#1976d2;color:#fff" onclick="renderActForm(null,null,'${c.id}','')">📅 Programar</button>`:""}${c?`${c.xirux_sync?'<span style="font-size:12px;font-weight:700;color:#4caf50;margin-right:4px">✓ En Xirux</span>':''}<button class="btn" id="xirux-cl-btn" style="background:#5c6bc0;color:#fff" onclick="subirClienteXirux('${c.id}')">⬆ Subir a Xirux</button><button class="btn bsm" style="background:#e65100;color:#fff" onclick="diagXirux()" title="Prueba conexión con datos mínimos hardcodeados">🔧 Diag</button>`:''} <button class="btn bp" id="cf-sv" onclick="sCl('${c?.id||""}')">${c?"Actualizar":"Guardar"}</button></div></div>
 ${c?`<div class="fc" style="margin-top:16px"><div class="st">📅 Actividades <button class="btn bsm" style="float:right;background:#1976d2;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:var(--ff)" onclick="renderActForm(null,null,'${c.id}','')">+ Programar</button></div><div id="cl-acts-list"><div class="empty">Cargando...</div></div></div>`:""}
+${c?`<div class="fc" style="margin-top:16px"><div class="st">🚨 Incidencias de entrega <span id="cl-nov-badge" style="font-size:11px;background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:10px;font-weight:700;display:none"></span></div><div id="cl-novedades-list"><div class="empty">Cargando...</div></div></div>`:""}
+
 <div class="fc" style="margin-top:16px"><div class="st">📍 Puntos de venta (Sucursales) <button class="btn bp bsm" style="float:right" onclick="toggleNewSuc()">+ Agregar</button></div>
 <div id="suc-new" style="display:none;margin-bottom:16px;padding:14px;background:var(--bg);border-radius:8px">
 <div class="grid g3">
@@ -1017,6 +1019,7 @@ if(c){
   if(dp){$("cf-dep").value=dp[0];uCiu();$("cf-ciu").value=c.ciudad}
   loadSucList(c.id);
   loadClActsSection(c.id);
+  loadClNovedadesSection(c.nombre);
 }
 }
 
@@ -1055,6 +1058,24 @@ async function loadClActsSection(clId){
         </div>`:""}
       </div>`}).join("");
   }catch(e){const el=$("cl-acts-list");if(el)el.innerHTML=`<div class="empty">Error cargando actividades</div>`}
+}
+async function loadClNovedadesSection(clNombre){
+  const el=$("cl-novedades-list");if(!el)return;
+  try{
+    const deliCls=await api("clientes","GET",null,"?select=id,nombre&limit=2000");
+    const nNorm=normNom(clNombre||'');
+    const match=(deliCls||[]).find(c=>normNom(c.nombre)===nNorm);
+    if(!match){el.innerHTML=`<div class="empty">Sin entregas registradas en el sistema de despacho</div>`;return;}
+    const facs=await api("facturas","GET",null,"?select=id,consecutivo,fecha&cliente_id=eq."+match.id+"&order=fecha.desc&limit=500");
+    const facIds=(facs||[]).map(f=>f.id);
+    if(!facIds.length){el.innerHTML=`<div class="empty">Sin entregas registradas</div>`;return;}
+    const ents=await api("entregas","GET",null,"?select=id,factura_id,motivo_novedad,registrado_en&motivo_novedad=not.is.null&factura_id=in.("+facIds.join(",")+")"+"&order=registrado_en.desc&limit=50");
+    if(!ents||!ents.length){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Sin incidencias registradas</div>`;return;}
+    const badge=$("cl-nov-badge");
+    if(badge){badge.textContent=ents.length+" incidencia"+(ents.length!==1?"s":"");badge.style.display="inline";}
+    const facMap={};(facs||[]).forEach(f=>{facMap[f.id]=f;});
+    el.innerHTML=`<div class="tw"><table><thead><tr><th>Fecha</th><th>Factura</th><th>Motivo</th></tr></thead><tbody>${ents.map(e=>{const f=facMap[e.factura_id]||{};return`<tr><td style="font-size:12px;white-space:nowrap">${f.fecha||'—'}</td><td style="font-family:monospace;font-size:12px;color:var(--muted)">${escHtml(f.consecutivo||'—')}</td><td><span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">${escHtml(e.motivo_novedad)}</span></td></tr>`;}).join("")}</tbody></table></div>`;
+  }catch(e){el.innerHTML=`<div class="empty">Error cargando incidencias</div>`;}
 }
 function toggleClActRes(id){const b=$("cl-res-box-"+id);if(!b)return;const open=b.style.display!=="block";b.style.display=open?"block":"none";if(open)$("cl-res-txt-"+id)?.focus()}
 async function completeActCl(id,clId){const txt=$("cl-res-txt-"+id)?.value.trim()||"";try{await api("crm_actividades","PATCH",{estado:"completada",resultado:txt||null},"?id=eq."+id);showT("✅ Actividad completada");loadClActsSection(clId)}catch(e){showT(e.message,"error")}}
