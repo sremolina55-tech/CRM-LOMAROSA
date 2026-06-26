@@ -726,8 +726,15 @@ async function enviarXiruxPed(pid){
       viewPedDetail(pid);
     }else{
       const msg=res.Mensaje||res.Data?.[0]?.Detalle||JSON.stringify(res);
-      showT("Xirux: "+msg,"error");
-      if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}
+      if(msg&&msg.toLowerCase().includes("ya existe")){
+        await api("crm_pedidos","PATCH",{estado:"Enviado a ERP"},"?id=eq."+pid);
+        await loadPed();
+        showT("Pedido #"+ped.numero_pedido+" ya estaba en Xirux — marcado como Enviado ✓");
+        viewPedDetail(pid);
+      }else{
+        showT("Xirux: "+msg,"error");
+        if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}
+      }
     }
   }catch(e){
     showT("Error conexión Xirux: "+e.message,"error");
