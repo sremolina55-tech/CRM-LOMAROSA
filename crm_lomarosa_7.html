@@ -127,30 +127,10 @@ function actualizarUrlServicio(){console.log('Servidor en: '+ANTEC_URL);}
 
 // ── ANTECEDENTES POLICÍA ─────────────────────────────────────────────────────
 function onCedulaInput(){
-  toggleNomFields();
   const tipo=$("cf-td")?.value,ced=($("cf-cod")?.value||"").trim();
   if(tipo!=="13"||ced.length<5){_antecResult=null;const e=$("antec-box");if(e)e.style.display="none";return;}
   _antecResult=null;
   consultarAntecedentes(ced);
-}
-function toggleNomFields(){
-  const isNIT=$("cf-td")?.value==="31";
-  const nit=$("nom-nit-grp"),pn=$("nom-pn-grp");
-  if(nit)nit.style.display=isNIT?"":"none";
-  if(pn)pn.style.display=isNIT?"none":"";
-}
-function initNomFields(c){
-  if(!c||!c.nombre)return;
-  const isNIT=(c.tipo_documento||"13")==="31";
-  if(isNIT){const el=$("cf-nom");if(el)el.value=c.nombre;return;}
-  const parts=(c.nombre||"").trim().split(/\s+/).filter(Boolean);
-  const n=parts.length;
-  if(n===0)return;
-  const pn=$("cf-pn"),sn=$("cf-sn"),pa=$("cf-pa"),sa=$("cf-sa");
-  if(n===1){if(pn)pn.value=parts[0];}
-  else if(n===2){if(pn)pn.value=parts[0];if(pa)pa.value=parts[1];}
-  else if(n===3){if(pn)pn.value=parts[0];if(pa)pa.value=parts[1];if(sa)sa.value=parts[2];}
-  else{if(pn)pn.value=parts[0];if(sn)sn.value=parts[1];if(pa)pa.value=parts[n-2];if(sa)sa.value=parts[n-1];}
 }
 
 async function consultarAntecedentes(cedula){
@@ -712,17 +692,12 @@ async function diagXirux(){
   }catch(e){console.log("Error test:",e.message);showT("Error: "+e.message,"error");}
 }
 
-const _xiruxEnviando=new Set();
 async function enviarXiruxPed(pid){
-  if(_xiruxEnviando.has(pid)){showT("Ya se está enviando este pedido, espera...","warning");return;}
-  _xiruxEnviando.add(pid);
   const btn=$("xirux-btn");
   if(btn){btn.disabled=true;btn.textContent="Enviando a Xirux...";}
-  // Verificar estado actualizado desde Supabase antes de enviar
-  await loadPed();
   let ped=pedidos.find(x=>x.id===pid);
-  if(!ped){showT("Pedido no encontrado","error");_xiruxEnviando.delete(pid);if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}return;}
-  if(ped.estado==="Enviado a ERP"){showT("Este pedido ya fue enviado a Xirux ✓","warning");_xiruxEnviando.delete(pid);viewPedDetail(pid);return;}
+  if(!ped){await loadPed();ped=pedidos.find(x=>x.id===pid);}
+  if(!ped){showT("Pedido no encontrado","error");if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}return;}
   const det=await api("crm_pedido_detalle","GET",null,"?pedido_id=eq."+pid+"&select=*,crm_productos(codigo)")||[];
   if(!det.length){showT("El pedido no tiene productos","error");if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}return;}
   const tercero=(ped.crm_clientes?.codigo||"").replace(/-\d+$/,"");
@@ -767,8 +742,6 @@ async function enviarXiruxPed(pid){
   }catch(e){
     showT("Error conexión Xirux: "+e.message,"error");
     if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}
-  }finally{
-    _xiruxEnviando.delete(pid);
   }
 }
 
@@ -1012,9 +985,8 @@ const incompletoBanner=c?.prospecto_incompleto?`<div style="background:#fff3e0;b
 $("mc").innerHTML=`<div style="margin-bottom:16px"><button class="btn bs bsm" onclick="showView('clientes')">← Volver</button><h2 style="margin-top:8px">${c?"Editar":"Nuevo"} cliente</h2></div>${incompletoBanner}
 <div class="fc"><div class="st">Identificación</div><div class="grid g3">
 <div class="field"><label><span class="req">* </span>Tipo documento</label><select id="cf-td" onchange="onCedulaInput()">${tdO}</select></div>
-<div class="field"><label><span class="req">* </span>Número documento</label><input id="cf-cod" value="${c?.codigo||""}" onblur="onCedulaInput()"></div></div>
-<div id="nom-nit-grp" style="${(c?.tipo_documento||'13')==='31'?'':'display:none'}"><div class="field"><label><span class="req">* </span>Razón Social</label><input id="cf-nom" placeholder="Nombre de la empresa"></div></div>
-<div id="nom-pn-grp" style="${(c?.tipo_documento||'13')==='31'?'display:none':''}"><div class="grid g2"><div class="field"><label><span class="req">* </span>Primer nombre</label><input id="cf-pn"></div><div class="field"><label>Segundo nombre</label><input id="cf-sn"></div></div><div class="grid g2"><div class="field"><label><span class="req">* </span>Primer apellido</label><input id="cf-pa"></div><div class="field"><label>Segundo apellido</label><input id="cf-sa"></div></div></div>
+<div class="field"><label><span class="req">* </span>Número documento</label><input id="cf-cod" value="${c?.codigo||""}" onblur="onCedulaInput()"></div>
+<div class="field"><label><span class="req">* </span>Nombre</label><input id="cf-nom" value="${c?.nombre||""}"></div></div>
 <div id="antec-box" style="display:none"></div>
 <div class="st">Clasificación</div><div class="grid g3">
 ${U.rol!=="vendedor"?`<div class="field"><label>Vendedor</label><select id="cf-ven"><option value="">Sel.</option>${vo}</select></div>`:""}<div class="field"><label>Clasificación A</label><select id="cf-clasa"><option value="">Sel.</option>${to}</select></div><div class="field"><label>Lista precios</label><select id="cf-lis"><option value="">Sel.</option>${lo}</select></div></div>
@@ -1059,7 +1031,6 @@ if(c){
   loadClActsSection(c.id);
   loadClNovedadesSection(c.nombre);
 }
-initNomFields(c);
 }
 
 async function loadClActsSection(clId){
@@ -1122,9 +1093,7 @@ async function cancelActCl(id,clId){if(!confirm("¿Cancelar esta actividad?"))re
 function editActCl(id,clId){api("crm_actividades","GET",null,"?id=eq."+id+"&select=*").then(r=>{if(r&&r[0])renderActForm(r[0],null,clId,"")}).catch(e=>showT(e.message,"error"))}
 function uCiu(){const d=$("cf-dep").value,s=$("cf-ciu");s.innerHTML='<option value="">'+(d?"Sel.":"Sel. depto.")+'</option>';if(d&&DEPTOS[d])DEPTOS[d].forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;s.appendChild(o)})}
 function eCl(id){const c=clientes.find(x=>x.id===id);if(c)renderClForm(c)}
-async function sCl(eid){const cod=$("cf-cod")?.value.trim(),ciu=$("cf-ciu")?.value,dir=$("cf-dir")?.value.trim(),tel=$("cf-tel")?.value.trim(),cel=$("cf-cel")?.value.trim(),ema=$("cf-ema")?.value.trim();
-const isNIT=$("cf-td")?.value==="31";
-const nom=isNIT?($("cf-nom")?.value||"").trim():[($("cf-pn")?.value||"").trim(),($("cf-sn")?.value||"").trim(),($("cf-pa")?.value||"").trim(),($("cf-sa")?.value||"").trim()].filter(Boolean).join(" ");
+async function sCl(eid){const cod=$("cf-cod")?.value.trim(),nom=$("cf-nom")?.value.trim(),ciu=$("cf-ciu")?.value,dir=$("cf-dir")?.value.trim(),tel=$("cf-tel")?.value.trim(),cel=$("cf-cel")?.value.trim(),ema=$("cf-ema")?.value.trim();
 const vid=U.rol==="vendedor"?U.vendedor_id:($("cf-ven")?$("cf-ven").value:U.vendedor_id);
 if(!cod||!nom||!ciu||!dir||!tel||!cel){showT("Completa campos obligatorios (incluye celular)","error");return}
 if(!ema||!ema.includes("@")){showT("El email es obligatorio y debe ser válido","error");$("cf-ema")?.focus();return}
