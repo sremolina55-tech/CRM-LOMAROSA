@@ -726,15 +726,18 @@ async function enviarXiruxPed(pid){
       viewPedDetail(pid);
     }else{
       const msg=res.Mensaje||res.Data?.[0]?.Detalle||JSON.stringify(res);
+      // Si el número ya existe en Xirux, asignar el siguiente disponible y reintentar automáticamente
       if(msg&&msg.toLowerCase().includes("ya existe")){
-        await api("crm_pedidos","PATCH",{estado:"Enviado a ERP"},"?id=eq."+pid);
-        await loadPed();
-        showT("Pedido #"+ped.numero_pedido+" ya estaba en Xirux — marcado como Enviado ✓");
-        viewPedDetail(pid);
-      }else{
-        showT("Xirux: "+msg,"error");
-        if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}
+        if(btn)btn.textContent="Corrigiendo número...";
+        const todos=await api("crm_pedidos","GET",null,"?select=numero_pedido&order=numero_pedido.desc&limit=1");
+        const siguiente=(todos&&todos[0]?todos[0].numero_pedido:ped.numero_pedido)+1;
+        await api("crm_pedidos","PATCH",{numero_pedido:siguiente},"?id=eq."+pid);
+        showT("Número duplicado en Xirux — reintentando como #"+siguiente+"...");
+        await enviarXiruxPed(pid);
+        return;
       }
+      showT("Xirux: "+msg,"error");
+      if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}
     }
   }catch(e){
     showT("Error conexión Xirux: "+e.message,"error");
