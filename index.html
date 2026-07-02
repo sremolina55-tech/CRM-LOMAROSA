@@ -122,8 +122,16 @@ let U=null,vendedores=[],tipologias=[],sectores=[],listasP=[],clientes=[],visita
 let _agFecha="",_agMes="";
 let editingId=null,pedLineas=[],pedTab=1,_pedData={},_visClId=null,_tipoPed="normal";
 let _antecResult=null,_antecTimer=null;
-const ANTEC_URL="http://localhost:10000";
-function actualizarUrlServicio(){console.log('Servidor en: '+ANTEC_URL);}
+const _ANTEC_LOCAL="http://localhost:10000";
+const _esLocal=location.protocol==="file:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
+function getAntecURL(){return _esLocal?_ANTEC_LOCAL:(localStorage.getItem('antec_url')||"");}
+const ANTEC_URL={toString(){return getAntecURL();}};
+function actualizarUrlServicio(){
+  const actual=_esLocal?_ANTEC_LOCAL:(localStorage.getItem('antec_url')||"");
+  if(_esLocal){alert("El CRM está abierto localmente — usa: "+_ANTEC_LOCAL);return;}
+  const nueva=prompt("Pega la URL del túnel (ej: https://xxx.trycloudflare.com):",actual);
+  if(nueva&&nueva.trim().startsWith("https")){localStorage.setItem('antec_url',nueva.trim());location.reload();}
+}
 
 // ── ANTECEDENTES POLICÍA ─────────────────────────────────────────────────────
 function onCedulaInput(){
@@ -134,11 +142,13 @@ function onCedulaInput(){
 }
 
 async function consultarAntecedentes(cedula){
+  const _url=getAntecURL();
+  if(!_url){setAntecBox("error",'Sin URL del servidor — <a href="#" onclick="actualizarUrlServicio();return false" style="color:#fff;font-weight:700;text-decoration:underline">Configurar URL del túnel</a>');_antecResult={error:"Sin URL"};return;}
   setAntecBox("cargando","Consultando antecedentes judiciales... (puede tardar ~1 min)");
   const ctrl=new AbortController();
   const tid=setTimeout(()=>ctrl.abort(),90000);
   try{
-    const r=await fetch(ANTEC_URL+"/consulta-antecedentes",{
+    const r=await fetch(_url+"/consulta-antecedentes",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({cedula}),
