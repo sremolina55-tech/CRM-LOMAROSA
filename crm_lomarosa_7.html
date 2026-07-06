@@ -2389,7 +2389,7 @@ function cerrarDashAplzModal(){
 // ═══════════════════════════════════════════════════════
 // CONSIGNACIONES
 // ═══════════════════════════════════════════════════════
-let _cgTab='pend',_cgPend=[],_cgRevisa=[],_cgHist=[],_cgRepMap={},_cgFacMap={},_cgCliMap={};
+let _cgByRep={},_cgRepSel=null,_cgRepMap={},_cgFacMap={},_cgCliMap={};
 let _cgModalData=null,_cgModalSel=new Set();
 
 function _esRepartidor(nombre){
@@ -2399,20 +2399,18 @@ function _esRepartidor(nombre){
 }
 
 async function renderConsig(){
+  const savedRep=_cgRepSel;
   $("mc").innerHTML=`<div class="topbar"><h2>💰 Consignaciones</h2><button class="btn bs bsm" onclick="renderConsig()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...</div>`;
   try{
-    // Datos base
     const [reps,deliCls,consigs]=await Promise.all([
       api("repartidores","GET",null,"?select=id,nombre&limit=200"),
       api("clientes","GET",null,"?select=id,nombre&limit=3000"),
       api("consignaciones","GET",null,"?select=id,repartidor_id,fecha,monto_total,foto_url,estado,observaciones,registrado_en,revisado_por,observacion_revision&order=fecha.desc&limit=500")
     ]);
-
     _cgRepMap={};
     (reps||[]).filter(r=>_esRepartidor(r.nombre)).forEach(r=>{_cgRepMap[r.id]=r.nombre;});
     _cgCliMap={};(deliCls||[]).forEach(c=>{_cgCliMap[c.id]=c.nombre;});
 
-    // IDs de facturas ya consignadas
     const cgIds=(consigs||[]).map(c=>c.id);
     let cgFacs=[];
     if(cgIds.length){
@@ -2425,12 +2423,10 @@ async function renderConsig(){
     const consignedSet=new Set(cgFacs.map(cf=>cf.factura_id));
     const cgFacMap={};cgFacs.forEach(cf=>{if(!cgFacMap[cf.consignacion_id])cgFacMap[cf.consignacion_id]=[];cgFacMap[cf.consignacion_id].push(cf);});
 
-    // Facturas últimos 90 días
     const d90=new Date();d90.setDate(d90.getDate()-90);const desde90=d90.toISOString().split('T')[0];
     const facs=await api("facturas","GET",null,"?select=id,consecutivo,fecha,cliente_id,repartidor_id&fecha=gte."+desde90+"&limit=8000")||[];
     _cgFacMap={};facs.forEach(f=>{_cgFacMap[f.id]=f;});
 
-    // Entregas con efectivo en chunks
     const facIds=facs.map(f=>f.id);let ents=[];
     const sz=500;
     for(let i=0;i<facIds.length;i+=sz){
@@ -2438,26 +2434,32 @@ async function renderConsig(){
       ents=[...ents,...ch];
     }
 
-    // Pendientes: efectivo no consignados (agrupados por repartidor normalizado)
-    const efEnt=ents.filter(e=>(e.metodo_pago==='efectivo'||Number(e.monto_efectivo)>0)&&!consignedSet.has(e.factura_id));
-    const byRep={};
-    efEnt.forEach(e=>{
+    _cgByRep={};
+    const ensureRep=(repId)=>{
+      const nom=_cgRepMap[repId];if(!nom)return null;
+      if(!_cgByRep[repId])_cgByRep[repId]={nombre:nom,repId,sinConsignar:[],porAprobar:[],aprobadas:[],rechazadas:[]};
+      return _cgByRep[repId];
+    };
+
+    // Facturas con efectivo sin consignacion
+    ents.filter(e=>(e.metodo_pago==='efectivo'||Number(e.monto_efectivo)>0)&&!consignedSet.has(e.factura_id)).forEach(e=>{
       const f=_cgFacMap[e.factura_id];if(!f)return;
-      const nom=_cgRepMap[f.repartidor_id];if(!nom)return;
-      const key=normNom(nom);
-      if(!byRep[key])byRep[key]={nombre:nom,repId:f.repartidor_id,items:[]};
-      byRep[key].items.push({factura_id:f.id,entrega_id:e.id,consecutivo:f.consecutivo,fecha:f.fecha,cliente:_cgCliMap[f.cliente_id]||'',monto:Number(e.monto_efectivo)||0});
+      const rep=ensureRep(f.repartidor_id);if(!rep)return;
+      rep.sinConsignar.push({factura_id:f.id,entrega_id:e.id,consecutivo:f.consecutivo,fecha:f.fecha,cliente:_cgCliMap[f.cliente_id]||'',monto:Number(e.monto_efectivo)||0});
     });
-    // Ordenar items por fecha desc
-    Object.values(byRep).forEach(r=>r.items.sort((a,b)=>b.fecha.localeCompare(a.fecha)));
-    _cgPend=Object.values(byRep).sort((a,b)=>b.items.length-a.items.length);
 
-    // Por revisar (estado pendiente)
-    _cgRevisa=(consigs||[]).filter(c=>c.estado==='pendiente').map(c=>({...c,facturas:cgFacMap[c.id]||[]}));
+    // Consignaciones por estado
+    (consigs||[]).forEach(c=>{
+      const rep=ensureRep(c.repartidor_id);if(!rep)return;
+      const item={...c,facturas:cgFacMap[c.id]||[]};
+      if(c.estado==='pendiente')rep.porAprobar.push(item);
+      else if(c.estado==='aprobada')rep.aprobadas.push(item);
+      else rep.rechazadas.push(item);
+    });
 
-    // Historial (aprobada / rechazada)
-    _cgHist=(consigs||[]).filter(c=>c.estado!=='pendiente').map(c=>({...c,facturas:cgFacMap[c.id]||[]}));
+    Object.values(_cgByRep).forEach(r=>r.sinConsignar.sort((a,b)=>b.fecha.localeCompare(a.fecha)));
 
+    _cgRepSel=savedRep&&_cgByRep[savedRep]?savedRep:null;
     renderConsigUI();
   }catch(e){
     $("mc").innerHTML=`<div class="topbar"><h2>💰 Consignaciones</h2><button class="btn bs bsm" onclick="renderConsig()">🔄</button></div><div style="padding:40px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:13px;color:#e53935">${e.message}</div></div>`;
@@ -2465,124 +2467,172 @@ async function renderConsig(){
 }
 
 function renderConsigUI(){
-  const col=t=>_cgTab===t?'var(--accent)':'var(--muted)';
-  const brd=t=>_cgTab===t?'3px solid var(--accent)':'3px solid transparent';
-  const totalPend=_cgPend.reduce((s,r)=>s+r.items.length,0);
-  const totalRevisa=_cgRevisa.length;
-  $("mc").innerHTML=`
-<div class="topbar" style="flex-direction:column;align-items:stretch;padding-bottom:0;gap:0">
-  <div style="display:flex;align-items:center;margin-bottom:10px">
-    <h2 style="margin:0">💰 Consignaciones</h2>
-    <button class="btn bs bsm" style="margin-left:auto" onclick="renderConsig()">🔄</button>
-  </div>
-  <div style="display:flex;border-top:1px solid var(--border)">
-    <div onclick="_cgTab='pend';renderConsigUI()" style="flex:1;text-align:center;padding:10px 4px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:${brd('pend')};color:${col('pend')}">
-      Sin consignar${totalPend?` <span style="background:#e53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${totalPend}</span>`:''}
-    </div>
-    <div onclick="_cgTab='revisa';renderConsigUI()" style="flex:1;text-align:center;padding:10px 4px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:${brd('revisa')};color:${col('revisa')}">
-      Por revisar${totalRevisa?` <span style="background:#ff9800;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${totalRevisa}</span>`:''}
-    </div>
-    <div onclick="_cgTab='hist';renderConsigUI()" style="flex:1;text-align:center;padding:10px 4px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:${brd('hist')};color:${col('hist')}">Historial</div>
-  </div>
-</div>
-<div style="padding:16px 0 80px">
-  ${_cgTab==='pend'?_renderCgPend():_cgTab==='revisa'?_renderCgRevisa():_renderCgHist()}
-</div>`;
+  if(_cgRepSel)return _renderRepDetalle(_cgRepSel);
+  _renderRepGrid();
 }
 
-function _renderCgPend(){
-  if(!_cgPend.length)return`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">✅</div><div>Todos los conductores al día</div></div>`;
-  return _cgPend.map((rep,ri)=>{
-    const total=rep.items.reduce((s,i)=>s+i.monto,0);
-    const rows=rep.items.slice(0,5).map(it=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
+function _renderRepGrid(){
+  const reps=Object.values(_cgByRep).sort((a,b)=>(b.sinConsignar.length+b.porAprobar.length)-(a.sinConsignar.length+a.porAprobar.length));
+  const totalSinConsig=reps.reduce((s,r)=>s+r.sinConsignar.length,0);
+  const totalPorAprobar=reps.reduce((s,r)=>s+r.porAprobar.length,0);
+  const resumen=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+    ${totalSinConsig?`<span style="background:#fff3e0;color:#e65100;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700">${totalSinConsig} sin consignar</span>`:''}
+    ${totalPorAprobar?`<span style="background:#fff8e1;color:#f57f17;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700">${totalPorAprobar} por aprobar</span>`:''}
+  </div>`;
+  if(!reps.length){
+    $("mc").innerHTML=`<div class="topbar"><div style="display:flex;align-items:center"><h2 style="margin:0">💰 Consignaciones</h2><button class="btn bs bsm" style="margin-left:auto" onclick="renderConsig()">🔄</button></div></div><div style="padding:48px 20px;text-align:center;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">✅</div><div>Todo al día</div></div>`;
+    return;
+  }
+  const cards=reps.map(rep=>{
+    const montoPend=rep.sinConsignar.reduce((s,i)=>s+i.monto,0);
+    const montoPorAp=rep.porAprobar.reduce((s,c)=>s+Number(c.monto_total||0),0);
+    const montoAp=rep.aprobadas.reduce((s,c)=>s+Number(c.monto_total||0),0);
+    const pills=[];
+    if(rep.sinConsignar.length)pills.push(`<span style="background:#fff3e0;color:#e65100;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700">⏳ ${rep.sinConsignar.length} sin consignar · $${Math.round(montoPend).toLocaleString('es-CO')}</span>`);
+    if(rep.porAprobar.length)pills.push(`<span style="background:#fff8e1;color:#f57f17;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700">🔍 ${rep.porAprobar.length} por aprobar · $${Math.round(montoPorAp).toLocaleString('es-CO')}</span>`);
+    if(rep.aprobadas.length)pills.push(`<span style="background:#e8f5e9;color:#2e7d32;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700">✅ ${rep.aprobadas.length} aprobada${rep.aprobadas.length!==1?'s':''} · $${Math.round(montoAp).toLocaleString('es-CO')}</span>`);
+    return`<div onclick="_abrirRepDetalle('${rep.repId}')" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:15px;margin-bottom:7px">🚚 ${rep.nombre}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">${pills.join('')}</div>
+      </div>
+      <div style="color:var(--muted);font-size:22px;margin-left:12px;flex-shrink:0">›</div>
+    </div>`;
+  }).join('');
+  $("mc").innerHTML=`<div class="topbar" style="flex-direction:column;align-items:stretch;padding-bottom:12px">
+  <div style="display:flex;align-items:center"><h2 style="margin:0">💰 Consignaciones</h2><button class="btn bs bsm" style="margin-left:auto" onclick="renderConsig()">🔄</button></div>
+  ${resumen}
+</div><div style="padding:16px 0 80px">${cards}</div>`;
+}
+
+function _abrirRepDetalle(repId){
+  _cgRepSel=repId;
+  _renderRepDetalle(repId);
+}
+
+function _volverRepGrid(){
+  _cgRepSel=null;
+  renderConsigUI();
+}
+
+function _renderRepDetalle(repId){
+  const rep=_cgByRep[repId];
+  if(!rep){_cgRepSel=null;renderConsigUI();return;}
+
+  // Pendientes por consignar
+  let sinConsigHtml='';
+  if(rep.sinConsignar.length){
+    const total=rep.sinConsignar.reduce((s,i)=>s+i.monto,0);
+    const rows=rep.sinConsignar.slice(0,6).map(it=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #ffe0b2">
         <div style="font-size:12px">
           <span style="font-weight:700;font-family:monospace;color:var(--accent)">#${it.consecutivo}</span>
-          <span style="color:var(--muted);margin-left:6px">${it.cliente||'—'}</span>
+          <span style="color:var(--muted);margin-left:6px">${it.cliente||'—'} · ${it.fecha}</span>
         </div>
         <div style="font-size:12px;font-weight:700;white-space:nowrap;margin-left:8px">$${Math.round(it.monto).toLocaleString('es-CO')}</div>
       </div>`).join('');
-    const extra=rep.items.length>5?`<div style="font-size:11px;color:var(--muted);padding:6px 0">+${rep.items.length-5} más...</div>`:'';
-    return`<div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-        <div>
-          <div style="font-weight:700;font-size:15px">🚚 ${rep.nombre}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${rep.items.length} factura${rep.items.length!==1?'s':''} · efectivo pendiente</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;margin-left:10px">
-          <div style="font-size:16px;font-weight:800;color:var(--accent)">$${Math.round(total).toLocaleString('es-CO')}</div>
-          <button onclick="_abrirCgModal(${ri})" style="margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:var(--ff);cursor:pointer">+ Crear consignación</button>
-        </div>
+    const extra=rep.sinConsignar.length>6?`<div style="font-size:11px;color:#e65100;padding:6px 0">+${rep.sinConsignar.length-6} más...</div>`:'';
+    sinConsigHtml=`<div style="background:#fff3e0;border:1.5px solid #ffcc80;border-radius:14px;padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-weight:700;font-size:13px;color:#e65100">⏳ Pendientes por consignar</div>
+        <div style="font-weight:800;font-size:15px;color:#e65100">$${Math.round(total).toLocaleString('es-CO')}</div>
       </div>
       ${rows}${extra}
+      <button onclick="_abrirCgModalFromRep('${repId}')" style="margin-top:12px;width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;font-family:var(--ff);cursor:pointer">+ Crear consignación</button>
     </div>`;
-  }).join('');
-}
+  }
 
-function _renderCgRevisa(){
-  if(!_cgRevisa.length)return`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">✅</div><div>Sin consignaciones pendientes de revisión</div></div>`;
-  return _cgRevisa.map(c=>{
-    const nom=_cgRepMap[c.repartidor_id]||'Conductor desconocido';
-    const ts=c.registrado_en?new Date(c.registrado_en).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}):'';
-    return`<div style="background:#fff;border:1.5px solid #ffb300;border-radius:14px;padding:14px 16px;margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-        <div>
-          <div style="font-weight:700;font-size:15px">🚚 ${nom}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">📅 ${c.fecha} · ${ts}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:1px">${(c.facturas||[]).length} factura${(c.facturas||[]).length!==1?'s':''}</div>
-        </div>
-        <div style="font-size:18px;font-weight:800;color:var(--accent);flex-shrink:0;margin-left:10px">$${Math.round(Number(c.monto_total||0)).toLocaleString('es-CO')}</div>
-      </div>
-      ${c.observaciones?`<div style="font-size:12px;color:var(--muted);background:var(--bg);border-radius:8px;padding:8px;margin-bottom:10px">${c.observaciones}</div>`:''}
-      ${c.foto_url?`<button onclick="window.open('${c.foto_url}','_blank')" style="width:100%;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:8px;padding:9px;font-size:12px;font-weight:700;font-family:var(--ff);cursor:pointer;margin-bottom:8px">📎 Ver soporte de consignación</button>`:'<div style="font-size:12px;color:#e53935;margin-bottom:8px">⚠️ Sin soporte adjunto</div>'}
-      <div style="display:flex;gap:8px;margin-top:4px">
-        <button onclick="_aprobarCg('${c.id}')" style="flex:1;background:#4caf50;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;font-family:var(--ff);cursor:pointer">✅ Aprobar</button>
-        <button onclick="_rechazarCg('${c.id}')" style="flex:1;background:#f44336;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;font-family:var(--ff);cursor:pointer">❌ Rechazar</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function _renderCgHist(){
-  if(!_cgHist.length)return`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📋</div><div>Sin historial</div></div>`;
-  const byDate={};
-  _cgHist.forEach(c=>{const d=c.fecha||'—';if(!byDate[d])byDate[d]=[];byDate[d].push(c);});
-  return Object.keys(byDate).sort().reverse().map(fecha=>{
-    const items=byDate[fecha];
-    const dayTotal=items.reduce((s,c)=>s+Number(c.monto_total||0),0);
-    const rows=items.map(c=>{
-      const nom=_cgRepMap[c.repartidor_id]||'—';
-      const esAp=c.estado==='aprobada';
-      const bg=esAp?'#e8f5e9':'#ffebee',tc=esAp?'#2e7d32':'#c62828',lbl=esAp?'Aprobada':'Rechazada';
-      return`<div style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+  // Por aprobar
+  let porAprobarHtml='';
+  if(rep.porAprobar.length){
+    const items=rep.porAprobar.map(c=>{
+      const ts=c.registrado_en?new Date(c.registrado_en).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}):'';
+      return`<div style="background:#fff;border:1px solid #ffe082;border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
           <div>
-            <div style="font-weight:600;font-size:13px">🚚 ${nom}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${(c.facturas||[]).length} factura${(c.facturas||[]).length!==1?'s':''}</div>
-            ${c.observacion_revision?`<div style="font-size:11px;color:#666;margin-top:3px">💬 ${c.observacion_revision}</div>`:''}
+            <div style="font-size:12px;font-weight:700;color:var(--muted)">📅 ${c.fecha}${ts?' · '+ts:''}</div>
+            <div style="font-size:11px;color:var(--muted)">${(c.facturas||[]).length} factura${(c.facturas||[]).length!==1?'s':''}</div>
+            ${c.observaciones?`<div style="font-size:11px;color:#666;margin-top:2px">${c.observaciones}</div>`:''}
+          </div>
+          <div style="font-weight:800;font-size:15px;flex-shrink:0;margin-left:8px">$${Math.round(Number(c.monto_total||0)).toLocaleString('es-CO')}</div>
+        </div>
+        ${c.foto_url?`<button onclick="window.open('${c.foto_url}','_blank')" style="width:100%;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:8px;padding:7px;font-size:11px;font-weight:700;font-family:var(--ff);cursor:pointer;margin-bottom:6px">📎 Ver soporte</button>`:'<div style="font-size:11px;color:#e53935;margin-bottom:6px">⚠️ Sin soporte adjunto</div>'}
+        <div style="display:flex;gap:6px">
+          <button onclick="_aprobarCg('${c.id}')" style="flex:1;background:#4caf50;color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;font-family:var(--ff);cursor:pointer">✅ Aprobar</button>
+          <button onclick="_rechazarCg('${c.id}')" style="flex:1;background:#f44336;color:#fff;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:700;font-family:var(--ff);cursor:pointer">❌ Rechazar</button>
+        </div>
+      </div>`;
+    }).join('');
+    porAprobarHtml=`<div style="background:#fff8e1;border:1.5px solid #ffe082;border-radius:14px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;color:#f57f17;margin-bottom:10px">🔍 Por aprobar (${rep.porAprobar.length})</div>
+      ${items}
+    </div>`;
+  }
+
+  // Aprobadas
+  let aprobadasHtml='';
+  if(rep.aprobadas.length){
+    const items=rep.aprobadas.map(c=>`
+      <div style="background:#fff;border:1px solid #a5d6a7;border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--muted)">📅 ${c.fecha}</div>
+            <div style="font-size:11px;color:var(--muted)">${(c.facturas||[]).length} factura${(c.facturas||[]).length!==1?'s':''}</div>
+            ${c.observacion_revision?`<div style="font-size:11px;color:#666;margin-top:2px">💬 ${c.observacion_revision}</div>`:''}
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:8px">
+            <div style="font-weight:800;font-size:15px;color:#2e7d32">$${Math.round(Number(c.monto_total||0)).toLocaleString('es-CO')}</div>
+            <span style="font-size:10px;background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:2px 7px;font-weight:700">Aprobada</span>
+          </div>
+        </div>
+        ${c.foto_url?`<button onclick="window.open('${c.foto_url}','_blank')" style="margin-top:7px;width:100%;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:7px;padding:6px;font-size:11px;font-weight:600;font-family:var(--ff);cursor:pointer">📎 Ver soporte</button>`:''}
+      </div>`).join('');
+    aprobadasHtml=`<div style="background:#f1f8e9;border:1.5px solid #a5d6a7;border-radius:14px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;color:#2e7d32;margin-bottom:10px">✅ Aprobadas (${rep.aprobadas.length})</div>
+      ${items}
+    </div>`;
+  }
+
+  // Rechazadas
+  let rechazadasHtml='';
+  if(rep.rechazadas.length){
+    const items=rep.rechazadas.map(c=>`
+      <div style="background:#fff;border:1px solid #ef9a9a;border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--muted)">📅 ${c.fecha}</div>
+            <div style="font-size:11px;color:var(--muted)">${(c.facturas||[]).length} factura${(c.facturas||[]).length!==1?'s':''}</div>
+            ${c.observacion_revision?`<div style="font-size:11px;color:#c62828;margin-top:2px">💬 ${c.observacion_revision}</div>`:''}
           </div>
           <div style="text-align:right;flex-shrink:0;margin-left:8px">
             <div style="font-weight:700;font-size:14px">$${Math.round(Number(c.monto_total||0)).toLocaleString('es-CO')}</div>
-            <span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:${bg};color:${tc}">${lbl}</span>
+            <span style="font-size:10px;background:#ffebee;color:#c62828;border-radius:10px;padding:2px 7px;font-weight:700">Rechazada</span>
           </div>
         </div>
-        ${c.foto_url?`<button onclick="window.open('${c.foto_url}','_blank')" style="margin-top:8px;width:100%;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:7px;padding:7px;font-size:11px;font-weight:600;font-family:var(--ff);cursor:pointer">📎 Ver soporte</button>`:''}
-      </div>`;
-    }).join('');
-    return`<div style="margin-bottom:18px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 2px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px">📅 ${fecha}</div>
-        <div style="font-size:13px;font-weight:700">$${Math.round(dayTotal).toLocaleString('es-CO')}</div>
-      </div>
-      ${rows}
+      </div>`).join('');
+    rechazadasHtml=`<div style="background:#ffebee;border:1.5px solid #ef9a9a;border-radius:14px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;color:#c62828;margin-bottom:10px">❌ Rechazadas (${rep.rechazadas.length})</div>
+      ${items}
     </div>`;
-  }).join('');
+  }
+
+  const empty=!rep.sinConsignar.length&&!rep.porAprobar.length&&!rep.aprobadas.length&&!rep.rechazadas.length;
+  $("mc").innerHTML=`
+<div class="topbar" style="display:flex;align-items:center;gap:8px">
+  <button onclick="_volverRepGrid()" style="background:none;border:none;font-size:24px;cursor:pointer;padding:0;line-height:1;color:var(--accent);flex-shrink:0">‹</button>
+  <h2 style="margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🚚 ${rep.nombre}</h2>
+  <button class="btn bs bsm" onclick="renderConsig()">🔄</button>
+</div>
+<div style="padding:16px 0 80px">
+  ${empty?`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">✅</div><div>Todo al día</div></div>`:''}
+  ${sinConsigHtml}${porAprobarHtml}${aprobadasHtml}${rechazadasHtml}
+</div>`;
 }
 
-function _abrirCgModal(repIdx){
-  const rep=_cgPend[repIdx];if(!rep)return;
-  _cgModalData=rep;
-  _cgModalSel=new Set(rep.items.map(i=>i.factura_id));
+function _abrirCgModalFromRep(repId){
+  const rep=_cgByRep[repId];if(!rep)return;
+  _cgModalData={...rep,items:rep.sinConsignar};
+  _cgModalSel=new Set(rep.sinConsignar.map(i=>i.factura_id));
   let m=document.getElementById('cg-modal');
   if(!m){
     m=document.createElement('div');m.id='cg-modal';
