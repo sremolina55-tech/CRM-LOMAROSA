@@ -642,7 +642,7 @@ async function recargarActual(){
 async function loadData(){
   showLoading(true);
   const [facturas, clientes, repartidores] = await Promise.all([
-    sbGet('facturas','select=id,consecutivo,fecha,estado,kg_facturados,kg_facturados_original,precio_unitario,sucursal,cliente_id,repartidor_id&order=consecutivo&limit=5000'),
+    sbGet('facturas','select=id,consecutivo,fecha,estado,kg_facturados,kg_facturados_original,precio_unitario,sucursal,cliente_id,repartidor_id&order=fecha.desc,consecutivo.desc&limit=5000'),
     sbGet('clientes','select=id,nombre&limit=1000'),
     sbGet('repartidores','select=id,nombre&limit=1000')
   ]);
@@ -1528,21 +1528,49 @@ function filterByDate(date) {
   document.getElementById('stat-novedades').textContent=nov;
 }
 
-function exportarExcel() {
+async function exportarExcel() {
   var desde=document.getElementById('excel-desde').value;
   var hasta=document.getElementById('excel-hasta').value;
-  var source = VISTA_DATA.length ? VISTA_DATA : DATA;
-  if(!source.length) { alert('No hay datos para exportar'); return; }
+  var source;
 
-  // Aplicar filtro de fechas si se seleccionaron
   if(desde||hasta){
-    source=source.filter(function(r){
-      if(desde&&r.fecha<desde) return false;
-      if(hasta&&r.fecha>hasta) return false;
-      return true;
+    // Consultar Supabase directo con el rango de fechas
+    showLoading(true);
+    var H2={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};
+    var qs='select=id,consecutivo,fecha,estado,kg_facturados,precio_unitario,sucursal,cliente_id,repartidor_id&order=fecha.asc,consecutivo.asc&limit=10000';
+    if(desde) qs+='&fecha=gte.'+desde;
+    if(hasta) qs+='&fecha=lte.'+hasta;
+    var [facsR,clsR,repsR]=await Promise.all([
+      fetch(SUPABASE_URL+'/rest/v1/facturas?'+qs,{headers:H2}),
+      fetch(SUPABASE_URL+'/rest/v1/clientes?select=id,nombre&limit=3000',{headers:H2}),
+      fetch(SUPABASE_URL+'/rest/v1/repartidores?select=id,nombre&limit=200',{headers:H2})
+    ]);
+    var facs=facsR.ok?await facsR.json():[];
+    var cMap={};(clsR.ok?await clsR.json():[]).forEach(c=>{cMap[c.id]=c.nombre;});
+    var rMap={};(repsR.ok?await repsR.json():[]).forEach(r=>{rMap[r.id]=r.nombre;});
+    var facIds=facs.map(f=>f.id); var ents=[];
+    for(var i=0;i<facIds.length;i+=500){
+      var er=await fetch(SUPABASE_URL+'/rest/v1/entregas?select=factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en&factura_id=in.('+facIds.slice(i,i+500).join(',')+')',{headers:H2});
+      ents=ents.concat(er.ok?await er.json():[]);
+    }
+    var entMap={};ents.forEach(e=>{entMap[e.factura_id]=e;});
+    source=facs.map(function(f){
+      var e=entMap[f.id]||{};
+      var diff=e.kg_recibidos!=null?Math.round((e.kg_recibidos-(f.kg_facturados||0))*10)/10:0;
+      return{consecutivo:f.consecutivo,fecha:f.fecha,hora:e.registrado_en?new Date(e.registrado_en).toTimeString().slice(0,5):null,
+        cliente:cMap[f.cliente_id]||'-',repartidor:rMap[f.repartidor_id]||'-',
+        kgFac:f.kg_facturados,kgRec:e.kg_recibidos??null,diff,metodo:e.metodo_pago||null,
+        montoEfectivo:e.monto_efectivo||null,montoTransf:e.monto_transferencia||null,
+        obs:e.observaciones||'',sucursal:f.sucursal||null,hasNovedad:false,
+        consigEstado:null,consigFecha:null,notaTipo:null,notaNum:null,notaEstado:null,notaPdf:null,
+        fotoFactura:null,fotoComprobante:null};
     });
+    showLoading(false);
+  } else {
+    source = VISTA_DATA.length ? VISTA_DATA : DATA;
   }
-  if(!source.length){alert('No hay datos en ese rango de fechas');return;}
+
+  if(!source.length){alert('No hay datos para exportar');return;}
 
   const metodosMap = {efectivo:'Efectivo',transferencia:'Transferencia',no_pago:'No pagó',parcial:'Pago parcial'};
 
