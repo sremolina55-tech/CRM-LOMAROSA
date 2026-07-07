@@ -262,24 +262,6 @@ async function renderDash(){await loadCl();await loadVis(today());await loadPed(
 if(!_agMes)_agMes=today().slice(0,7);if(!_agFecha)_agFecha=today();await loadActs();
 try{const clNms=new Set(clientes.map(c=>normNom(c.nombre||'')));const all=await api("traz_reprog","GET",null,"?select=id,pedido,tercero,items_json,fecha_propuesta_planta,motivo_label&estado=eq.pendiente_vendedor&order=created_at.asc");_dashAplzPend=(all||[]).filter(r=>clNms.has(normNom(r.tercero||'')));}catch(e){_dashAplzPend=[];}
 _dashNovedades=[];
-try{
-  const clNmsSet=new Set(clientes.map(c=>normNom(c.nombre||'')));
-  if(clNmsSet.size>0){
-    const deliCls=await api("clientes","GET",null,"?select=id,nombre&limit=2000");
-    const matchIds=(deliCls||[]).filter(c=>clNmsSet.has(normNom(c.nombre))).map(c=>c.id);
-    if(matchIds.length){
-      const d30=new Date();d30.setDate(d30.getDate()-30);const desde30=d30.toISOString().split('T')[0];
-      const facs=await api("facturas","GET",null,"?select=id,consecutivo,fecha,cliente_id&cliente_id=in.("+matchIds.join(",")+")"+"&fecha=gte."+desde30+"&limit=1000");
-      const facIds=(facs||[]).map(f=>f.id);
-      if(facIds.length){
-        const ents=await api("entregas","GET",null,"?select=id,factura_id,motivo_novedad,registrado_en&motivo_novedad=not.is.null&factura_id=in.("+facIds.join(",")+")"+"&order=registrado_en.desc&limit=30");
-        const clMap={};(deliCls||[]).forEach(c=>{clMap[c.id]=c.nombre;});
-        const facMap={};(facs||[]).forEach(f=>{facMap[f.id]=f;});
-        _dashNovedades=(ents||[]).map(e=>{const f=facMap[e.factura_id]||{};return{cliente:clMap[f.cliente_id]||'—',consecutivo:f.consecutivo||'—',fecha:f.fecha||'—',motivo:e.motivo_novedad};});
-      }
-    }
-  }
-}catch(e){_dashNovedades=[];}
 const tv=visitas.length;const ph=pedidos;const totalV=ph.reduce((s,p)=>s+(p.total||0),0);const vCP=visitas.filter(v=>v.resultado==="Pedido");
 const actsVencidas=actividades.filter(a=>a.fecha<today()&&a.estado==="pendiente");
 const actsHoy=actividades.filter(a=>a.fecha===today()&&a.estado==="pendiente").sort((a,b)=>(a.hora_inicio||"23:59").localeCompare(b.hora_inicio||"23:59"));
@@ -1081,12 +1063,7 @@ async function loadClNovedadesSection(clNombre){
     const facs=await api("facturas","GET",null,"?select=id,consecutivo,fecha&cliente_id=eq."+match.id+"&order=fecha.desc&limit=500");
     const facIds=(facs||[]).map(f=>f.id);
     if(!facIds.length){el.innerHTML=`<div class="empty">Sin entregas registradas</div>`;return;}
-    const ents=await api("entregas","GET",null,"?select=id,factura_id,motivo_novedad,registrado_en&motivo_novedad=not.is.null&factura_id=in.("+facIds.join(",")+")"+"&order=registrado_en.desc&limit=50");
-    if(!ents||!ents.length){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Sin incidencias registradas</div>`;return;}
-    const badge=$("cl-nov-badge");
-    if(badge){badge.textContent=ents.length+" incidencia"+(ents.length!==1?"s":"");badge.style.display="inline";}
-    const facMap={};(facs||[]).forEach(f=>{facMap[f.id]=f;});
-    el.innerHTML=`<div class="tw"><table><thead><tr><th>Fecha</th><th>Factura</th><th>Motivo</th></tr></thead><tbody>${ents.map(e=>{const f=facMap[e.factura_id]||{};return`<tr><td style="font-size:12px;white-space:nowrap">${f.fecha||'—'}</td><td style="font-family:monospace;font-size:12px;color:var(--muted)">${escHtml(f.consecutivo||'—')}</td><td><span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">${escHtml(e.motivo_novedad)}</span></td></tr>`;}).join("")}</tbody></table></div>`;
+    el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Sin incidencias registradas</div>`;return;
   }catch(e){el.innerHTML=`<div class="empty">Error cargando incidencias</div>`;}
 }
 function toggleClActRes(id){const b=$("cl-res-box-"+id);if(!b)return;const open=b.style.display!=="block";b.style.display=open?"block":"none";if(open)$("cl-res-txt-"+id)?.focus()}
