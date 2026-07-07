@@ -117,7 +117,7 @@ td{padding:10px 12px;border-bottom:1px solid #f0f0f0}tr{cursor:pointer}tr:hover 
 <div class="mn" id="mnav"></div><div class="main" id="mc"></div></div>
 <div class="toast" id="toast"><span id="toast-msg"></span><button style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px" onclick="hideT()">×</button></div>
 <script>
-(function(){const v="10";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
+(function(){const v="11";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
 const SB="https://pqcgibsdewrrbukibubd.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxY2dpYnNkZXdycmJ1a2lidWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTQyMDQsImV4cCI6MjA5MDM3MDIwNH0.7WnJydoru0E_aOGkyMGxPgZXTAEVmu4KQwqPPM-W14A";
 let U=null,vendedores=[],tipologias=[],sectores=[],listasP=[],clientes=[],visitas=[],productos=[],pedidos=[],supIds=[],metas=[],prospectos=[],actividades=[],_dashAplzPend=[],_dashNovedades=[];
 let _agFecha="",_agMes="";
@@ -1978,7 +1978,8 @@ let _rutaData=[],_rutaClNms=new Set(),_rutaTab='hoy',_rutaFecha='',_rutaQ='';
 function limpObsRuta(o){return(o||'').replace(/\[FOTO_EF:[^\]]+\]/g,'').replace(/\[PDV-[^\]]+\]/g,'').replace(/\[EDITADO[^\]]+\]/g,'').replace(/\[OC FACTURADA:[^\]]+\]/g,'').trim()}
 function normNom(s){var ac='aeiouun',sp='áéíóúüñ';var r=(s||'').toLowerCase().trim();for(var i=0;i<sp.length;i++)r=r.split(sp[i]).join(ac[i]);return r.replace(/  +/g,' ')}
 async function renderRutas(){
-  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando... [v10]</div>`;
+  const _rprog=(msg)=>{const el=$("_rt_prog");if(el)el.textContent=msg;};
+  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...<div id="_rt_prog" style="font-size:11px;color:#999;margin-top:8px">v11 — iniciando</div></div>`;
   if(!document.getElementById('rt-modal')){
     const m=document.createElement('div');m.id='rt-modal';
     m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;align-items:flex-end;justify-content:center';
@@ -1987,43 +1988,43 @@ async function renderRutas(){
     document.body.appendChild(m);
   }
   try{
-    // P1: Clientes CRM del vendedor
+    _rprog("P1: cargando clientes CRM...");
     const misCls=await api("crm_clientes","GET",null,"?select=nombre&limit=5000"+vF()).catch(e=>{throw new Error("P1 crm_clientes: "+e.message)});
     _rutaClNms=new Set((misCls||[]).map(c=>normNom(c.nombre)));
+    _rprog("P1 OK ("+_rutaClNms.size+" clientes). P2: despacho...");
     if(_rutaClNms.size===0){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
 
-    // P2: Clientes y repartidores del sistema de despacho
     let deliCls,repartidores;
     try{[deliCls,repartidores]=await Promise.all([api("clientes","GET",null,"?select=id,nombre&limit=5000"),api("repartidores","GET",null,"?select=id,nombre&limit=500")]);}
     catch(e){throw new Error("P2 clientes/repartidores: "+e.message)}
 
     const cMap={};(deliCls||[]).forEach(c=>cMap[c.id]=c.nombre);
     const rMap={};(repartidores||[]).forEach(r=>rMap[r.id]=r.nombre);
-
-    const d60=new Date();d60.setDate(d60.getDate()-60);const desde60=d60.toISOString().split('T')[0];
-
-    // P3: IDs de clientes que coinciden entre CRM y despacho
     const matchIds=(deliCls||[]).filter(c=>_rutaClNms.has(normNom(c.nombre))).map(c=>c.id);
+    _rprog("P2 OK ("+matchIds.length+" coinciden). P4: facturas...");
     if(!matchIds.length){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
 
-    // P4: Facturas en chunks de 100
+    const d60=new Date();d60.setDate(d60.getDate()-60);const desde60=d60.toISOString().split('T')[0];
     let facturas=[];
     for(let i=0;i<matchIds.length;i+=100){
       const chunk=matchIds.slice(i,i+100);
+      _rprog("P4: facturas chunk "+i+"/"+matchIds.length+"...");
       const res=await api("facturas","GET",null,"?select=id,consecutivo,fecha,estado,kg_facturados,sucursal,cliente_id,repartidor_id&cliente_id=in.("+chunk.join(",")+")"+"&fecha=gte."+desde60+"&order=fecha.desc&limit=1000").catch(e=>{throw new Error("P4 facturas chunk "+i+": "+e.message)})||[];
       facturas=facturas.concat(res);
     }
+    _rprog("P4 OK ("+facturas.length+" facturas). P5: entregas...");
 
-    // P5: Entregas
     const facIds=(facturas||[]).map(f=>f.id);
     let entregas=[],novedades=[],notas=[];
     if(facIds.length){
       for(let i=0;i<facIds.length;i+=80){
         const chunk=facIds.slice(i,i+80);
+        _rprog("P5: entregas chunk "+i+"/"+facIds.length+"...");
         const res=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+chunk.join(",")+")"+"&limit=500").catch(e=>{throw new Error("P5 entregas chunk "+i+": "+e.message)})||[];
         entregas=entregas.concat(res);
       }
       const entIds=entregas.map(e=>e.id);
+      _rprog("P5 OK ("+entregas.length+" entregas). P6: novedades...");
       if(entIds.length){
         for(let i=0;i<entIds.length;i+=80){
           const chunk=entIds.slice(i,i+80);
@@ -2031,6 +2032,7 @@ async function renderRutas(){
           novedades=novedades.concat(res);
         }
         const novIds=novedades.map(n=>n.id);
+        _rprog("P6 OK. P7: notas...");
         if(novIds.length){
           for(let i=0;i<novIds.length;i+=80){
             const chunk=novIds.slice(i,i+80);
