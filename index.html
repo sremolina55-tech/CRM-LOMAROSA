@@ -1973,11 +1973,15 @@ async function saveAct(eid){
 
 // ═══ RUTAS ═══
 let _rutaData=[],_rutaClNms=new Set(),_rutaTab='hoy',_rutaFecha='',_rutaQ='';
+let _rutaMatchIds=[],_rutaCMap={},_rutaRMap={},_rutaRango='hoy';
+function _nDiasAtras(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split('T')[0]}
 function limpObsRuta(o){return(o||'').replace(/\[FOTO_EF:[^\]]+\]/g,'').replace(/\[PDV-[^\]]+\]/g,'').replace(/\[EDITADO[^\]]+\]/g,'').replace(/\[OC FACTURADA:[^\]]+\]/g,'').trim()}
 function normNom(s){var ac='aeiouun',sp='áéíóúüñ';var r=(s||'').toLowerCase().trim();for(var i=0;i<sp.length;i++)r=r.split(sp[i]).join(ac[i]);return r.replace(/  +/g,' ')}
-async function renderRutas(){
+async function renderRutas(rango,force){
+  if(rango!=null)_rutaRango=rango;
+  if(force){_rutaMatchIds=[];_rutaCMap={};_rutaRMap={};}
   const _rprog=(msg)=>{const el=$("_rt_prog");if(el)el.textContent=msg;};
-  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...<div id="_rt_prog" style="font-size:12px;color:#1976d2;font-weight:600;margin-top:12px;background:#e3f2fd;border-radius:8px;padding:8px">v12 — iniciando</div></div>`;
+  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas(null,true)">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...<div id="_rt_prog" style="font-size:12px;color:#1976d2;font-weight:600;margin-top:12px;background:#e3f2fd;border-radius:8px;padding:8px">iniciando...</div></div>`;
   if(!document.getElementById('rt-modal')){
     const m=document.createElement('div');m.id='rt-modal';
     m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;align-items:flex-end;justify-content:center';
@@ -1986,72 +1990,70 @@ async function renderRutas(){
     document.body.appendChild(m);
   }
   try{
-    _rprog("P1: cargando clientes CRM...");
-    const misCls=await api("crm_clientes","GET",null,"?select=nombre&limit=5000"+vF()).catch(e=>{throw new Error("P1 crm_clientes: "+e.message)});
-    _rutaClNms=new Set((misCls||[]).map(c=>normNom(c.nombre)));
-    _rprog("P1 OK ("+_rutaClNms.size+" clientes). P2: despacho...");
-    if(_rutaClNms.size===0){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
-
-    let deliCls,repartidores;
-    try{[deliCls,repartidores]=await Promise.all([api("clientes","GET",null,"?select=id,nombre&limit=5000"),api("repartidores","GET",null,"?select=id,nombre&limit=500")]);}
-    catch(e){throw new Error("P2 clientes/repartidores: "+e.message)}
-
-    const cMap={};(deliCls||[]).forEach(c=>cMap[c.id]=c.nombre);
-    const rMap={};(repartidores||[]).forEach(r=>rMap[r.id]=r.nombre);
-    const matchIds=(deliCls||[]).filter(c=>_rutaClNms.has(normNom(c.nombre))).map(c=>c.id);
-    _rprog("P2 OK ("+matchIds.length+" coinciden). P4: facturas...");
-    if(!matchIds.length){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
-
-    const d60=new Date();d60.setDate(d60.getDate()-60);const desde60=d60.toISOString().split('T')[0];
+    // P1+P2: solo si no hay caché
+    if(!_rutaMatchIds.length){
+      _rprog("Cargando clientes CRM...");
+      const misCls=await api("crm_clientes","GET",null,"?select=nombre&limit=5000"+vF()).catch(e=>{throw new Error("crm_clientes: "+e.message)});
+      _rutaClNms=new Set((misCls||[]).map(c=>normNom(c.nombre)));
+      if(_rutaClNms.size===0){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
+      _rprog("Conectando con despacho...");
+      const [deliCls,repartidores]=await Promise.all([
+        api("clientes","GET",null,"?select=id,nombre&limit=5000"),
+        api("repartidores","GET",null,"?select=id,nombre&limit=500")
+      ]).catch(e=>{throw new Error("despacho: "+e.message)});
+      _rutaCMap={};(deliCls||[]).forEach(c=>_rutaCMap[c.id]=c.nombre);
+      _rutaRMap={};(repartidores||[]).forEach(r=>_rutaRMap[r.id]=r.nombre);
+      _rutaMatchIds=(deliCls||[]).filter(c=>_rutaClNms.has(normNom(c.nombre))).map(c=>c.id);
+      if(!_rutaMatchIds.length){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
+    }
+    // Filtro de fechas según rango seleccionado
+    const fechaFiltro=_rutaRango==='hoy'?`&fecha=eq.${today()}`
+      :_rutaRango==='ayer'?`&fecha=eq.${_nDiasAtras(1)}`
+      :_rutaRango==='7d'?`&fecha=gte.${_nDiasAtras(7)}`
+      :`&fecha=gte.${_nDiasAtras(30)}`;
+    _rprog("Cargando facturas...");
     let facturas=[];
-    for(let i=0;i<matchIds.length;i+=50){
-      const chunk=matchIds.slice(i,i+50);
-      _rprog("P4: facturas chunk "+i+"/"+matchIds.length+"...");
-      const res=await api("facturas","GET",null,"?select=id,consecutivo,fecha,estado,kg_facturados,sucursal,cliente_id,repartidor_id&cliente_id=in.("+chunk.join(",")+")"+"&fecha=gte."+desde60+"&order=fecha.desc&limit=500").catch(e=>{throw new Error("P4 facturas chunk "+i+": "+e.message)})||[];
+    for(let i=0;i<_rutaMatchIds.length;i+=50){
+      const chunk=_rutaMatchIds.slice(i,i+50);
+      const res=await api("facturas","GET",null,"?select=id,consecutivo,fecha,estado,kg_facturados,sucursal,cliente_id,repartidor_id&cliente_id=in.("+chunk.join(",")+")"+ fechaFiltro +"&order=fecha.desc&limit=500").catch(e=>{throw new Error("facturas: "+e.message)})||[];
       facturas=facturas.concat(res);
     }
-    _rprog("P4 OK ("+facturas.length+" facturas). P5: entregas...");
-
-    const facIds=(facturas||[]).map(f=>f.id);
+    _rprog("Cargando entregas...");
+    const facIds=facturas.map(f=>f.id);
     let entregas=[],novedades=[],notas=[];
     if(facIds.length){
       for(let i=0;i<facIds.length;i+=40){
         const chunk=facIds.slice(i,i+40);
-        _rprog("P5: entregas chunk "+i+"/"+facIds.length+"...");
-        const res=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("P5 entregas chunk "+i+": "+e.message)})||[];
+        const res=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("entregas: "+e.message)})||[];
         entregas=entregas.concat(res);
       }
       const entIds=entregas.map(e=>e.id);
-      _rprog("P5 OK ("+entregas.length+" entregas). P6: novedades...");
       if(entIds.length){
         for(let i=0;i<entIds.length;i+=40){
           const chunk=entIds.slice(i,i+40);
-          const res=await api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&entrega_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("P6 novedades chunk "+i+": "+e.message)})||[];
+          const res=await api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&entrega_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("novedades: "+e.message)})||[];
           novedades=novedades.concat(res);
         }
         const novIds=novedades.map(n=>n.id);
-        _rprog("P6 OK. P7: notas...");
         if(novIds.length){
           for(let i=0;i<novIds.length;i+=40){
             const chunk=novIds.slice(i,i+40);
-            const res=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("P7 notas chunk "+i+": "+e.message)})||[];
+            const res=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("notas: "+e.message)})||[];
             notas=notas.concat(res);
           }
         }
       }
     }
-
     const eMap={};entregas.forEach(e=>{if(!eMap[e.factura_id])eMap[e.factura_id]=e;});
     const novMap={};novedades.forEach(n=>novMap[n.entrega_id]=n);
     const notaMap={};notas.forEach(n=>notaMap[n.novedad_id]=n);
-    _rutaData=(facturas||[]).map(f=>{
-      const nom=cMap[f.cliente_id]||'';
+    _rutaData=facturas.map(f=>{
       const e=eMap[f.id];const nov=e?novMap[e.id]:null;const nota=nov?notaMap[nov.id]:null;
       let estado=!e?(f.estado==='pendiente'?'pendiente':'ruta'):'entregada';
       if(e&&e.metodo_pago==='devolucion')estado='devuelta';
       if(e&&f.estado==='con_novedad')estado='novedad';
-      return{id:f.id,consecutivo:f.consecutivo,fecha:f.fecha,cliente:nom,sucursal:f.sucursal||null,
-        repartidor:rMap[f.repartidor_id]||'-',kgFac:f.kg_facturados,kgRec:e?e.kg_recibidos:null,
+      return{id:f.id,consecutivo:f.consecutivo,fecha:f.fecha,cliente:_rutaCMap[f.cliente_id]||'',sucursal:f.sucursal||null,
+        repartidor:_rutaRMap[f.repartidor_id]||'-',kgFac:f.kg_facturados,kgRec:e?e.kg_recibidos:null,
         metodo:e?e.metodo_pago:null,mEf:e?e.monto_efectivo:null,mTr:e?e.monto_transferencia:null,
         obs:e?limpObsRuta(e.observaciones):null,fotoUrl:e?e.foto_url:null,
         hora:e&&e.registrado_en?new Date(e.registrado_en).toTimeString().slice(0,5):null,
@@ -2059,23 +2061,26 @@ async function renderRutas(){
         notaNum:nota?nota.numero_nota:null,notaTipo:nota?nota.tipo_nota:null,
         notaMonto:nota?nota.monto:null,notaPdf:nota?nota.pdf_url:null};
     });
-    const hayHoy=facturas.some(f=>f.fecha===today());
-    _rutaTab=hayHoy?'hoy':'buscar';_rutaFecha='';_rutaQ='';
+    _rutaTab=_rutaData.some(f=>f.fecha===today())?'hoy':'buscar';
+    _rutaFecha='';_rutaQ='';
     renderRutasUI();
   }catch(e){
-    $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:14px;margin-bottom:16px">Error al cargar rutas</div><div style="font-size:11px;color:#1976d2;background:#e3f2fd;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-weight:600">CÓDIGO v12 | rol:${U?.rol} | supIds:${supIds.length}</div><div style="font-size:12px;color:#e53935;background:#ffebee;border-radius:8px;padding:8px 12px;margin-bottom:16px;text-align:left;word-break:break-all">${e.message}</div><button class="btn bs" onclick="renderRutas()">Reintentar</button></div>`;
+    $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas(null,true)">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:14px;margin-bottom:16px">Error al cargar rutas</div><div style="font-size:12px;color:#e53935;background:#ffebee;border-radius:8px;padding:8px 12px;margin-bottom:16px;text-align:left;word-break:break-all">${e.message}</div><button class="btn bs" onclick="renderRutas(null,true)">Reintentar</button></div>`;
   }
 }
 function renderRutasUI(){
   const hoy=today();
-  const fechas=[...new Set(_rutaData.map(r=>r.fecha))].sort().reverse().slice(0,14);
-  const mkChip=(val,lbl)=>`<div onclick="_rutaFecha='${val}';renderRutasUI()" style="background:${_rutaFecha===val?'var(--accent)':'#fff'};border:1.5px solid ${_rutaFecha===val?'var(--accent)':'var(--border)'};color:${_rutaFecha===val?'#fff':'var(--text2)'};border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">${lbl}</div>`;
-  const chips=mkChip('','Todas')+fechas.map(f=>mkChip(f,f===hoy?'Hoy':f)).join('');
   const col=v=>_rutaTab===v?'var(--accent)':'var(--muted)';
   const brd=v=>_rutaTab===v?'3px solid var(--accent)':'3px solid transparent';
+  const rangos=[{k:'hoy',l:'Hoy'},{k:'ayer',l:'Ayer'},{k:'7d',l:'7 días'},{k:'30d',l:'30 días'}];
+  const rfChips=rangos.map(r=>`<button onclick="renderRutas('${r.k}')" style="border:1.5px solid ${_rutaRango===r.k?'var(--accent)':'var(--border)'};border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--ff);white-space:nowrap;${_rutaRango===r.k?'background:var(--accent);color:#fff':'background:#fff;color:var(--text2)'}">${r.l}</button>`).join('');
+  const fechas=[...new Set(_rutaData.map(r=>r.fecha))].sort().reverse();
+  const mkChip=(val,lbl)=>`<span onclick="_rutaFecha='${val}';renderRutasBuscar()" style="display:inline-block;background:${_rutaFecha===val?'var(--accent)':'#fff'};border:1.5px solid ${_rutaFecha===val?'var(--accent)':'var(--border)'};color:${_rutaFecha===val?'#fff':'var(--text2)'};border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">${lbl}</span>`;
+  const fechaChips=fechas.length>1?(mkChip('','Todas')+fechas.map(f=>mkChip(f,f===hoy?'Hoy':f)).join('')):'';
   $("mc").innerHTML=`
 <div class="topbar" style="flex-direction:column;align-items:stretch;padding-bottom:0;gap:0">
-  <div style="display:flex;align-items:center;margin-bottom:10px"><h2 style="margin:0">🚚 Rutas</h2><button class="btn bs bsm" style="margin-left:auto" onclick="renderRutas()">🔄</button></div>
+  <div style="display:flex;align-items:center;margin-bottom:8px"><h2 style="margin:0">🚚 Rutas</h2><button class="btn bs bsm" style="margin-left:auto" onclick="renderRutas(null,true)">🔄</button></div>
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none">${rfChips}</div>
   <div style="display:flex;border-top:1px solid var(--border)">
     <div onclick="setRutaTab('hoy')" style="flex:1;text-align:center;padding:10px 0;font-size:13px;font-weight:600;cursor:pointer;border-bottom:${brd('hoy')};color:${col('hoy')}">Hoy</div>
     <div onclick="setRutaTab('buscar')" style="flex:1;text-align:center;padding:10px 0;font-size:13px;font-weight:600;cursor:pointer;border-bottom:${brd('buscar')};color:${col('buscar')}">Buscar</div>
@@ -2084,12 +2089,12 @@ function renderRutasUI(){
 <div style="padding:16px 0 80px">
   <div id="rt-v-hoy" style="display:${_rutaTab==='hoy'?'block':'none'}"><div id="rt-stats"></div><div id="rt-l-hoy"></div></div>
   <div id="rt-v-buscar" style="display:${_rutaTab==='buscar'?'block':'none'}">
-    <div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:8px;padding:10px 14px;margin-bottom:14px">
+    <div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:8px;padding:10px 14px;margin-bottom:10px">
       <span style="color:var(--muted);font-size:16px">⊕</span>
-      <input id="rt-sq" type="text" placeholder="Cliente o número de factura..." style="flex:1;border:none;outline:none;font-size:14px;font-family:var(--ff);color:var(--text);background:none" oninput="_rutaQ=this.value;renderRutasBuscar()">
+      <input id="rt-sq" type="text" placeholder="Cliente o número de factura..." value="${_rutaQ}" style="flex:1;border:none;outline:none;font-size:14px;font-family:var(--ff);color:var(--text);background:none" oninput="_rutaQ=this.value;renderRutasBuscar()">
       <button onclick="$('rt-sq').value='';_rutaQ='';renderRutasBuscar()" style="background:none;border:none;cursor:pointer;color:var(--muted)">✕</button>
     </div>
-    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none">${chips}</div>
+    ${fechaChips?`<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;scrollbar-width:none">${fechaChips}</div>`:''}
     <div id="rt-count" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
     <div id="rt-l-buscar"></div>
   </div>
