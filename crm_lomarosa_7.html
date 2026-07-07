@@ -2035,27 +2035,27 @@ async function renderRutas(){
       facturas=facturas.concat(res);
     }
 
-    // 5. Entregas filtradas por las facturas de este vendedor (en chunks)
+    // 5. Entregas filtradas por las facturas de este vendedor (en chunks de 80)
     const facIds=(facturas||[]).map(f=>f.id);
     let entregas=[],novedades=[],notas=[];
     if(facIds.length){
-      for(let i=0;i<facIds.length;i+=200){
-        const chunk=facIds.slice(i,i+200);
-        const res=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+chunk.join(",")+")"+"&limit=2000")||[];
+      for(let i=0;i<facIds.length;i+=80){
+        const chunk=facIds.slice(i,i+80);
+        const res=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+chunk.join(",")+")"+"&limit=500").catch(e=>{throw new Error("Paso 5 (entregas chunk "+i+"): "+e.message)})||[];
         entregas=entregas.concat(res);
       }
       const entIds=entregas.map(e=>e.id);
       if(entIds.length){
-        for(let i=0;i<entIds.length;i+=200){
-          const chunk=entIds.slice(i,i+200);
-          const res=await api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&entrega_id=in.("+chunk.join(",")+")")||[];
+        for(let i=0;i<entIds.length;i+=80){
+          const chunk=entIds.slice(i,i+80);
+          const res=await api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&entrega_id=in.("+chunk.join(",")+")"+"&limit=500").catch(e=>{throw new Error("Paso 6 (novedades chunk "+i+"): "+e.message)})||[];
           novedades=novedades.concat(res);
         }
         const novIds=novedades.map(n=>n.id);
         if(novIds.length){
-          for(let i=0;i<novIds.length;i+=200){
-            const chunk=novIds.slice(i,i+200);
-            const res=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+chunk.join(",")+")")||[];
+          for(let i=0;i<novIds.length;i+=80){
+            const chunk=novIds.slice(i,i+80);
+            const res=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+chunk.join(",")+")"+"&limit=500").catch(e=>{throw new Error("Paso 7 (notas chunk "+i+"): "+e.message)})||[];
             notas=notas.concat(res);
           }
         }
