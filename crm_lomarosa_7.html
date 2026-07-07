@@ -1977,7 +1977,7 @@ let _rutaData=[],_rutaClNms=new Set(),_rutaTab='hoy',_rutaFecha='',_rutaQ='';
 function limpObsRuta(o){return(o||'').replace(/\[FOTO_EF:[^\]]+\]/g,'').replace(/\[PDV-[^\]]+\]/g,'').replace(/\[EDITADO[^\]]+\]/g,'').replace(/\[OC FACTURADA:[^\]]+\]/g,'').trim()}
 function normNom(s){var ac='aeiouun',sp='áéíóúüñ';var r=(s||'').toLowerCase().trim();for(var i=0;i<sp.length;i++)r=r.split(sp[i]).join(ac[i]);return r.replace(/  +/g,' ')}
 async function renderRutas(){
-  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...</div>`;
+  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando... [v10]</div>`;
   if(!document.getElementById('rt-modal')){
     const m=document.createElement('div');m.id='rt-modal';
     m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;align-items:flex-end;justify-content:center';
