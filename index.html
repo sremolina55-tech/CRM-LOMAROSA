@@ -117,21 +117,14 @@ td{padding:10px 12px;border-bottom:1px solid #f0f0f0}tr{cursor:pointer}tr:hover 
 <div class="mn" id="mnav"></div><div class="main" id="mc"></div></div>
 <div class="toast" id="toast"><span id="toast-msg"></span><button style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px" onclick="hideT()">×</button></div>
 <script>
+(function(){const v="12";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
 const SB="https://pqcgibsdewrrbukibubd.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxY2dpYnNkZXdycmJ1a2lidWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTQyMDQsImV4cCI6MjA5MDM3MDIwNH0.7WnJydoru0E_aOGkyMGxPgZXTAEVmu4KQwqPPM-W14A";
 let U=null,vendedores=[],tipologias=[],sectores=[],listasP=[],clientes=[],visitas=[],productos=[],pedidos=[],supIds=[],metas=[],prospectos=[],actividades=[],_dashAplzPend=[],_dashNovedades=[];
 let _agFecha="",_agMes="";
 let editingId=null,pedLineas=[],pedTab=1,_pedData={},_visClId=null,_tipoPed="normal";
 let _antecResult=null,_antecTimer=null;
-const _ANTEC_LOCAL="http://localhost:10000";
-const _esLocal=location.protocol==="file:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
-function getAntecURL(){return _esLocal?_ANTEC_LOCAL:(localStorage.getItem('antec_url')||"");}
-const ANTEC_URL={toString(){return getAntecURL();}};
-function actualizarUrlServicio(){
-  const actual=_esLocal?_ANTEC_LOCAL:(localStorage.getItem('antec_url')||"");
-  if(_esLocal){alert("El CRM está abierto localmente — usa: "+_ANTEC_LOCAL);return;}
-  const nueva=prompt("Pega la URL del túnel (ej: https://xxx.trycloudflare.com):",actual);
-  if(nueva&&nueva.trim().startsWith("https")){localStorage.setItem('antec_url',nueva.trim());location.reload();}
-}
+const ANTEC_URL="http://localhost:10000";
+function actualizarUrlServicio(){console.log('Servidor en: '+ANTEC_URL);}
 
 // ── ANTECEDENTES POLICÍA ─────────────────────────────────────────────────────
 function onCedulaInput(){
@@ -142,13 +135,11 @@ function onCedulaInput(){
 }
 
 async function consultarAntecedentes(cedula){
-  const _url=getAntecURL();
-  if(!_url){setAntecBox("error",'Sin URL del servidor — <a href="#" onclick="actualizarUrlServicio();return false" style="color:#fff;font-weight:700;text-decoration:underline">Configurar URL del túnel</a>');_antecResult={error:"Sin URL"};return;}
   setAntecBox("cargando","Consultando antecedentes judiciales... (puede tardar ~1 min)");
   const ctrl=new AbortController();
   const tid=setTimeout(()=>ctrl.abort(),90000);
   try{
-    const r=await fetch(_url+"/consulta-antecedentes",{
+    const r=await fetch(ANTEC_URL+"/consulta-antecedentes",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({cedula}),
@@ -192,14 +183,14 @@ const CAN_VD=["LID003","VEN005"];
 const CAN_PR=["LID003","VEN005"];
 const TAT_TEAM=["LID003","VEN002","VEN005","VEN010","VEN011"];
 const HORECA_PRODS=new Set(["3","4","6","9","10","22","51","52","53","54","55","56","57","58","59","60","61","62","63","64","66","67","70","71","72","76","83","101","102","103","152","153","202","203","204","205","206","207","208","211","235","251","253","254","255","256","257","258","259","263","264","268","270","271","280","299","300","302","303","304","305","307","310","311","312","313","314","315","316","317","318","320","321","322","323","325","327","328","333","352","353","354","355","356","357","358","359","360","361","362","363","364","365","367","368","369","370","372","373","374","400","404","405","406","407","408","409","410","411","412","413","414","419","420","421","500","501","502","503","504","505","506","508","510","512","524","525","528","529","530","531","532","533","534","535","536","537","538","540","541","542","543","544","545","546","547","602","604","605","607","611","613","615","617","618","619","620","621","622","623","624","625","626","627","628","629","630","631","632","633","634","635","636","637","642","643","645","700","701","702","703","704","705","706","707","708","709","710","711","712","713","714","715","716","718","720","721","722","723","724","725","727","728","729","730","731","732","734","735","736","737","738","739","740","741","742","743","744","745","746","747","748","750","752","753","755","756","757","758","759","760","761","762","763","764","766","768","769","770","771","772","773","774","775","776","777","778","779","780","781","782","783","784","785","787","788","789","790","791","792","795","797","798","801","802","822","906","1000","1043","1180","1801"]);
-async function api(t,m="GET",b=null,q=""){const h={apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json"};if(m==="POST"||m==="PATCH")h.Prefer="return=representation";if(m==="DELETE")h.Prefer="";const o={method:m,headers:h};if(b)o.body=JSON.stringify(b);const r=await fetch(SB+"/rest/v1/"+t+q,o);if(!r.ok){const errText=await r.text();throw new Error(errText)}const x=await r.text();return x?JSON.parse(x):null}
+async function api(t,m="GET",b=null,q=""){const h={apikey:KEY,Authorization:"Bearer "+KEY};if(m==="POST"||m==="PATCH"){h["Content-Type"]="application/json";h.Prefer="return=representation";}if(m==="DELETE")h.Prefer="";const o={method:m,headers:h};if(b)o.body=JSON.stringify(b);const r=await fetch(SB+"/rest/v1/"+t+q,o);if(!r.ok){const errText=await r.text();throw new Error(errText)}const x=await r.text();return x?JSON.parse(x):null}
 function $(id){return document.getElementById(id)}
 function fmt(n){return new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",minimumFractionDigits:0}).format(n)}
 function fmtN(n){return new Intl.NumberFormat("es-CO",{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
 function today(){const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1).toString().padStart(2,"0")+"-"+d.getDate().toString().padStart(2,"0")}
 function curMonth(){return today().slice(0,7)}
 function nowStr(){return new Date().toLocaleString("es-CO",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}
-function showT(m,t="success"){const e=$("toast");e.style.background=t==="success"?"#4caf50":t==="error"?"#f44336":"#ff9800";$("toast-msg").textContent=m;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),4000)}
+function showT(m,t="success"){const e=$("toast");e.style.background=t==="success"?"#4caf50":t==="error"?"#f44336":t==="info"?"#1976d2":"#ff9800";$("toast-msg").textContent=m;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),4000)}
 function hideT(){$("toast").classList.remove("show")}
 function ssCreate(cid,opts,ph,onSel){const w=document.createElement("div");w.className="ss-wrap";const inp=document.createElement("input");inp.readOnly=true;inp.placeholder=ph||"Seleccionar...";inp.style.cssText="width:100%;padding:10px 12px;font-size:14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;background:#fff";const dr=document.createElement("div");dr.className="ss-drop";const sd=document.createElement("div");sd.className="ss-search";const si=document.createElement("input");si.placeholder="Buscar...";sd.appendChild(si);dr.appendChild(sd);let sv="";function render(f){dr.querySelectorAll(".ss-opt").forEach(o=>o.remove());const fl=(f||"").toLowerCase();opts.filter(o=>!fl||o.label.toLowerCase().includes(fl)||o.value.toLowerCase().includes(fl)).forEach(o=>{const d=document.createElement("div");d.className="ss-opt"+(o.value===sv?" sel":"");d.textContent=o.label;const _ds=()=>{sv=o.value;inp.value=o.label;si.value="";dr.classList.remove("show");if(onSel)onSel(o.value)};d.onclick=_ds;d.addEventListener("touchend",e=>{e.preventDefault();_ds()});dr.appendChild(d)})}const _td=()=>{render("");dr.classList.toggle("show")};inp.style.touchAction="manipulation";inp.addEventListener("touchend",e=>{e.preventDefault();_td()});inp.onclick=_td;si.oninput=()=>render(si.value);const _cl=e=>{if(!w.contains(e.target))dr.classList.remove("show")};document.addEventListener("click",_cl);document.addEventListener("touchstart",_cl,{passive:true});w.appendChild(inp);w.appendChild(dr);render("");const c=$(cid);if(c){c.innerHTML="";c.appendChild(w)}return{getValue:()=>sv,setValue:v=>{sv=v;const f=opts.find(o=>o.value===v);inp.value=f?f.label:"";render("")}}}
 // AUTH
@@ -220,13 +211,15 @@ function buildNav(){
     {single:true,id:"agenda",ic:"📅",l:"Agenda"},
     {single:true,id:"rutas",ic:"🚚",l:"Rutas"},
   ];
-  groups.push({single:true,id:"aplazados",ic:"⏳",l:"Pedidos aplazados"});
+  if(U.rol==="vendedor"||U.rol==="lider")groups.push({single:true,id:"aplazados",ic:"⏳",l:"Pedidos aplazados"});
+  if(U.rol==="admin"||U.rol==="lider")groups.push({single:true,id:"consignaciones",ic:"💰",l:"Consignaciones"});
   $("snav").innerHTML=groups.map(g=>{
     if(g.single)return`<button onclick="showView('${g.id}')" id="nav-${g.id}">${g.ic} <span>${g.l}</span></button>`;
     return`<div id="${g.id}"><button class="grp-hdr" onclick="toggleGrp('${g.id}')">${g.ic} <span>${g.l}</span><span class="arr">▼</span></button><div class="grp-body" id="${g.id}-body">${g.subs.map(s=>`<button onclick="showView('${s.id}')" id="nav-${s.id}">· <span>${s.l}</span></button>`).join("")}</div></div>`;
   }).join("");
   const mi=[{id:"dashboard",ic:"◆",l:"Hoy"},{id:"agenda",ic:"📅",l:"Agenda"},{id:"nueva-visita",ic:"📍",l:"Visita"},{id:"pedidos",ic:"📦",l:"Pedidos"},{id:"clientes",ic:"👥",l:"Clientes"},{id:"prospectos",ic:"🎯",l:"Prospectos"},{id:"rutas",ic:"🚚",l:"Rutas"}];
-  mi.push({id:"aplazados",ic:"⏳",l:"Aplazados"});
+  if(U.rol==="vendedor"||U.rol==="lider")mi.push({id:"aplazados",ic:"⏳",l:"Aplazados"});
+  if(U.rol==="admin"||U.rol==="lider")mi.push({id:"consignaciones",ic:"💰",l:"Consig."});
   $("mnav").innerHTML=mi.map(i=>`<button onclick="showView('${i.id}')" id="mn-${i.id}"><span class="ic">${i.ic}</span>${i.l}</button>`).join("")+`<button onclick="logout()"><span class="ic">⏻</span>Salir</button>`;
   if(U.rol==="admin"){document.querySelector(".sb .ft").innerHTML='<button onclick="logout()">Salir</button><button onclick="actualizarUrlServicio()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.85);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;font-family:var(--ff);margin-left:8px">🔧 URL API</button>'}
 }
@@ -249,13 +242,13 @@ function showView(v){
     if(body&&!body.classList.contains("open")){body.classList.add("open");if(hdr)hdr.classList.add("open")}
     if(hdr)hdr.classList.add("grp-act");
   }
-  const V={dashboard:renderDash,informe:renderInforme,"nueva-visita":renderVisForm,visitas:renderVisList,pedidos:renderPedList,clientes:renderClList,"nuevo-cliente":()=>renderClForm(),exportar:renderExport,prospectos:renderProspList,"nuevo-prospecto":()=>renderProspForm(),mapa:renderMapa,agenda:renderAgenda,rutas:renderRutas,aplazados:renderAplazados};
+  const V={dashboard:renderDash,informe:renderInforme,"nueva-visita":renderVisForm,visitas:renderVisList,pedidos:renderPedList,clientes:renderClList,"nuevo-cliente":()=>renderClForm(),exportar:renderExport,prospectos:renderProspList,"nuevo-prospecto":()=>renderProspForm(),mapa:renderMapa,agenda:renderAgenda,rutas:renderRutas,aplazados:renderAplazados,consignaciones:renderConsig};
   if(V[v])V[v]();window.scrollTo(0,0);
 }
 function vF(){if(U.rol==="vendedor")return"&vendedor_id=eq."+U.vendedor_id;if(U.rol==="lider"&&supIds.length)return"&vendedor_id=in.("+supIds.join(",")+")";return""}
 function vV(){if(U.rol==="vendedor")return vendedores.filter(x=>x.id===U.vendedor_id);if(U.rol==="lider")return vendedores.filter(x=>supIds.includes(x.id));return vendedores}
 async function loadAll(){try{const[v,t,s,lp,p]=await Promise.all([api("crm_vendedores","GET",null,"?activo=eq.true&order=nombre"),api("crm_tipologias","GET",null,"?activo=eq.true&order=orden"),api("crm_sectores","GET",null,"?order=codigo"),api("crm_listas_precio","GET",null,"?activo=eq.true&order=nombre"),api("crm_productos","GET",null,"?activo=eq.true&order=nombre")]);vendedores=v||[];tipologias=t||[];sectores=s||[];listasP=lp||[];productos=p||[]}catch(e){showT(e.message,"error")}}
-async function loadCl(){try{clientes=await api("crm_clientes","GET",null,"?order=nombre"+vF()+"&select=*,crm_vendedores(nombre,nit,codigo_vendedor),crm_tipologias!crm_clientes_tipologia_id_fkey(nombre),crm_listas_precio(nombre,codigo_xirux)")||[]}catch(e){showT(e.message,"error")}}
+async function loadCl(){try{clientes=await api("crm_clientes","GET",null,"?order=nombre"+vF()+"&limit=5000&select=*,crm_vendedores(nombre,nit,codigo_vendedor),crm_tipologias!crm_clientes_tipologia_id_fkey(nombre),crm_listas_precio(nombre,codigo_xirux)")||[]}catch(e){showT(e.message,"error")}}
 async function loadVis(f){try{let q="?order=created_at.desc&select=*,crm_vendedores(nombre),crm_clientes(nombre,codigo,fecha_ingreso)"+vF();if(f)q+="&fecha=eq."+f;visitas=await api("crm_visitas","GET",null,q)||[]}catch(e){showT(e.message,"error")}}
 async function loadVisMonth(){try{const m=curMonth();visitas=await api("crm_visitas","GET",null,"?order=created_at.desc&select=*,crm_vendedores(nombre),crm_clientes(nombre,codigo,fecha_ingreso)"+vF()+"&fecha=gte."+m+"-01&fecha=lte."+m+"-31")||[]}catch(e){showT(e.message,"error")}}
 async function loadPed(extra=""){try{pedidos=await api("crm_pedidos","GET",null,"?order=created_at.desc&select=*,crm_clientes(nombre,codigo,direccion,ciudad),crm_vendedores(nombre,nit),crm_sucursales(codigo_sucursal,nombre,direccion)"+vF()+extra)||[]}catch(e){showT(e.message,"error")}}
@@ -270,24 +263,6 @@ async function renderDash(){await loadCl();await loadVis(today());await loadPed(
 if(!_agMes)_agMes=today().slice(0,7);if(!_agFecha)_agFecha=today();await loadActs();
 try{const clNms=new Set(clientes.map(c=>normNom(c.nombre||'')));const all=await api("traz_reprog","GET",null,"?select=id,pedido,tercero,items_json,fecha_propuesta_planta,motivo_label&estado=eq.pendiente_vendedor&order=created_at.asc");_dashAplzPend=(all||[]).filter(r=>clNms.has(normNom(r.tercero||'')));}catch(e){_dashAplzPend=[];}
 _dashNovedades=[];
-try{
-  const clNmsSet=new Set(clientes.map(c=>normNom(c.nombre||'')));
-  if(clNmsSet.size>0){
-    const deliCls=await api("clientes","GET",null,"?select=id,nombre&limit=2000");
-    const matchIds=(deliCls||[]).filter(c=>clNmsSet.has(normNom(c.nombre))).map(c=>c.id);
-    if(matchIds.length){
-      const d30=new Date();d30.setDate(d30.getDate()-30);const desde30=d30.toISOString().split('T')[0];
-      const facs=await api("facturas","GET",null,"?select=id,consecutivo,fecha,cliente_id&cliente_id=in.("+matchIds.join(",")+")"+"&fecha=gte."+desde30+"&limit=1000");
-      const facIds=(facs||[]).map(f=>f.id);
-      if(facIds.length){
-        const ents=await api("entregas","GET",null,"?select=id,factura_id,motivo_novedad,registrado_en&motivo_novedad=not.is.null&factura_id=in.("+facIds.join(",")+")"+"&order=registrado_en.desc&limit=30");
-        const clMap={};(deliCls||[]).forEach(c=>{clMap[c.id]=c.nombre;});
-        const facMap={};(facs||[]).forEach(f=>{facMap[f.id]=f;});
-        _dashNovedades=(ents||[]).map(e=>{const f=facMap[e.factura_id]||{};return{cliente:clMap[f.cliente_id]||'—',consecutivo:f.consecutivo||'—',fecha:f.fecha||'—',motivo:e.motivo_novedad};});
-      }
-    }
-  }
-}catch(e){_dashNovedades=[];}
 const tv=visitas.length;const ph=pedidos;const totalV=ph.reduce((s,p)=>s+(p.total||0),0);const vCP=visitas.filter(v=>v.resultado==="Pedido");
 const actsVencidas=actividades.filter(a=>a.fecha<today()&&a.estado==="pendiente");
 const actsHoy=actividades.filter(a=>a.fecha===today()&&a.estado==="pendiente").sort((a,b)=>(a.hora_inicio||"23:59").localeCompare(b.hora_inicio||"23:59"));
@@ -736,6 +711,16 @@ async function enviarXiruxPed(pid){
       viewPedDetail(pid);
     }else{
       const msg=res.Mensaje||res.Data?.[0]?.Detalle||JSON.stringify(res);
+      // Si el número ya existe en Xirux, asignar el siguiente disponible y reintentar automáticamente
+      if(msg&&msg.toLowerCase().includes("ya existe")){
+        if(btn)btn.textContent="Corrigiendo número...";
+        const todos=await api("crm_pedidos","GET",null,"?select=numero_pedido&order=numero_pedido.desc&limit=1");
+        const siguiente=(todos&&todos[0]?todos[0].numero_pedido:ped.numero_pedido)+1;
+        await api("crm_pedidos","PATCH",{numero_pedido:siguiente},"?id=eq."+pid);
+        showT("Número duplicado en Xirux — reintentando como #"+siguiente+"...");
+        await enviarXiruxPed(pid);
+        return;
+      }
       showT("Xirux: "+msg,"error");
       if(btn){btn.disabled=false;btn.textContent="⬆ Enviar a Xirux";}
     }
@@ -1079,12 +1064,7 @@ async function loadClNovedadesSection(clNombre){
     const facs=await api("facturas","GET",null,"?select=id,consecutivo,fecha&cliente_id=eq."+match.id+"&order=fecha.desc&limit=500");
     const facIds=(facs||[]).map(f=>f.id);
     if(!facIds.length){el.innerHTML=`<div class="empty">Sin entregas registradas</div>`;return;}
-    const ents=await api("entregas","GET",null,"?select=id,factura_id,motivo_novedad,registrado_en&motivo_novedad=not.is.null&factura_id=in.("+facIds.join(",")+")"+"&order=registrado_en.desc&limit=50");
-    if(!ents||!ents.length){el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Sin incidencias registradas</div>`;return;}
-    const badge=$("cl-nov-badge");
-    if(badge){badge.textContent=ents.length+" incidencia"+(ents.length!==1?"s":"");badge.style.display="inline";}
-    const facMap={};(facs||[]).forEach(f=>{facMap[f.id]=f;});
-    el.innerHTML=`<div class="tw"><table><thead><tr><th>Fecha</th><th>Factura</th><th>Motivo</th></tr></thead><tbody>${ents.map(e=>{const f=facMap[e.factura_id]||{};return`<tr><td style="font-size:12px;white-space:nowrap">${f.fecha||'—'}</td><td style="font-family:monospace;font-size:12px;color:var(--muted)">${escHtml(f.consecutivo||'—')}</td><td><span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">${escHtml(e.motivo_novedad)}</span></td></tr>`;}).join("")}</tbody></table></div>`;
+    el.innerHTML=`<div class="empty" style="color:var(--green)">✓ Sin incidencias registradas</div>`;return;
   }catch(e){el.innerHTML=`<div class="empty">Error cargando incidencias</div>`;}
 }
 function toggleClActRes(id){const b=$("cl-res-box-"+id);if(!b)return;const open=b.style.display!=="block";b.style.display=open?"block":"none";if(open)$("cl-res-txt-"+id)?.focus()}
@@ -1998,7 +1978,8 @@ let _rutaData=[],_rutaClNms=new Set(),_rutaTab='hoy',_rutaFecha='',_rutaQ='';
 function limpObsRuta(o){return(o||'').replace(/\[FOTO_EF:[^\]]+\]/g,'').replace(/\[PDV-[^\]]+\]/g,'').replace(/\[EDITADO[^\]]+\]/g,'').replace(/\[OC FACTURADA:[^\]]+\]/g,'').trim()}
 function normNom(s){var ac='aeiouun',sp='áéíóúüñ';var r=(s||'').toLowerCase().trim();for(var i=0;i<sp.length;i++)r=r.split(sp[i]).join(ac[i]);return r.replace(/  +/g,' ')}
 async function renderRutas(){
-  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...</div>`;
+  const _rprog=(msg)=>{const el=$("_rt_prog");if(el)el.textContent=msg;};
+  $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...<div id="_rt_prog" style="font-size:12px;color:#1976d2;font-weight:600;margin-top:12px;background:#e3f2fd;border-radius:8px;padding:8px">v12 — iniciando</div></div>`;
   if(!document.getElementById('rt-modal')){
     const m=document.createElement('div');m.id='rt-modal';
     m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;align-items:flex-end;justify-content:center';
@@ -2007,41 +1988,58 @@ async function renderRutas(){
     document.body.appendChild(m);
   }
   try{
-    // 1. Nombres del vendedor en el CRM
-    const misCls=await api("crm_clientes","GET",null,"?select=nombre"+vF());
+    _rprog("P1: cargando clientes CRM...");
+    const misCls=await api("crm_clientes","GET",null,"?select=nombre&limit=5000"+vF()).catch(e=>{throw new Error("P1 crm_clientes: "+e.message)});
     _rutaClNms=new Set((misCls||[]).map(c=>normNom(c.nombre)));
-    if(_rutaClNms.size===0){_rutaData=[];_rutaTab='hoy';_rutaFecha='';_rutaQ='';renderRutasUI();return}
+    _rprog("P1 OK ("+_rutaClNms.size+" clientes). P2: despacho...");
+    if(_rutaClNms.size===0){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
 
-    // 2. Clientes del sistema de despacho — tabla pequeña, carga completa
-    const [deliCls,repartidores]=await Promise.all([
-      api("clientes","GET",null,"?select=id,nombre&limit=2000"),
-      api("repartidores","GET",null,"?select=id,nombre"),
-    ]);
+    let deliCls,repartidores;
+    try{[deliCls,repartidores]=await Promise.all([api("clientes","GET",null,"?select=id,nombre&limit=5000"),api("repartidores","GET",null,"?select=id,nombre&limit=500")]);}
+    catch(e){throw new Error("P2 clientes/repartidores: "+e.message)}
 
-    // 3. Cruzar por nombre normalizado → obtener IDs del sistema de despacho
     const cMap={};(deliCls||[]).forEach(c=>cMap[c.id]=c.nombre);
-    const matchIds=(deliCls||[]).filter(c=>_rutaClNms.has(normNom(c.nombre))).map(c=>c.id);
-    if(!matchIds.length){_rutaData=[];_rutaTab='hoy';_rutaFecha='';_rutaQ='';renderRutasUI();return}
-
-    // 4. Traer solo facturas de esos clientes, últimos 90 días
-    const d90=new Date();d90.setDate(d90.getDate()-90);const desde90=d90.toISOString().split('T')[0];
     const rMap={};(repartidores||[]).forEach(r=>rMap[r.id]=r.nombre);
-    const idStr=matchIds.join(",");
-    const facturas=await api("facturas","GET",null,"?select=id,consecutivo,fecha,estado,kg_facturados,sucursal,cliente_id,repartidor_id&cliente_id=in.("+idStr+")&fecha=gte."+desde90+"&order=fecha.desc&limit=5000");
+    const matchIds=(deliCls||[]).filter(c=>_rutaClNms.has(normNom(c.nombre))).map(c=>c.id);
+    _rprog("P2 OK ("+matchIds.length+" coinciden). P4: facturas...");
+    if(!matchIds.length){_rutaData=[];_rutaTab='buscar';_rutaFecha='';_rutaQ='';renderRutasUI();return}
 
-    // 5. Entregas filtradas por las facturas de este vendedor (evita traer todo)
+    const d60=new Date();d60.setDate(d60.getDate()-60);const desde60=d60.toISOString().split('T')[0];
+    let facturas=[];
+    for(let i=0;i<matchIds.length;i+=50){
+      const chunk=matchIds.slice(i,i+50);
+      _rprog("P4: facturas chunk "+i+"/"+matchIds.length+"...");
+      const res=await api("facturas","GET",null,"?select=id,consecutivo,fecha,estado,kg_facturados,sucursal,cliente_id,repartidor_id&cliente_id=in.("+chunk.join(",")+")"+"&fecha=gte."+desde60+"&order=fecha.desc&limit=500").catch(e=>{throw new Error("P4 facturas chunk "+i+": "+e.message)})||[];
+      facturas=facturas.concat(res);
+    }
+    _rprog("P4 OK ("+facturas.length+" facturas). P5: entregas...");
+
     const facIds=(facturas||[]).map(f=>f.id);
     let entregas=[],novedades=[],notas=[];
     if(facIds.length){
-      const facIdStr=facIds.join(",");
-      const [ents,novs]=await Promise.all([
-        api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+facIdStr+")&limit=5000"),
-        api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&limit=3000"),
-      ]);
-      entregas=ents||[];novedades=novs||[];
-      const novIds=novedades.map(n=>n.id);
-      if(novIds.length){
-        notas=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+novIds.join(",")+")&limit=3000")||[];
+      for(let i=0;i<facIds.length;i+=40){
+        const chunk=facIds.slice(i,i+40);
+        _rprog("P5: entregas chunk "+i+"/"+facIds.length+"...");
+        const res=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("P5 entregas chunk "+i+": "+e.message)})||[];
+        entregas=entregas.concat(res);
+      }
+      const entIds=entregas.map(e=>e.id);
+      _rprog("P5 OK ("+entregas.length+" entregas). P6: novedades...");
+      if(entIds.length){
+        for(let i=0;i<entIds.length;i+=40){
+          const chunk=entIds.slice(i,i+40);
+          const res=await api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&entrega_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("P6 novedades chunk "+i+": "+e.message)})||[];
+          novedades=novedades.concat(res);
+        }
+        const novIds=novedades.map(n=>n.id);
+        _rprog("P6 OK. P7: notas...");
+        if(novIds.length){
+          for(let i=0;i<novIds.length;i+=40){
+            const chunk=novIds.slice(i,i+40);
+            const res=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+chunk.join(",")+")"+"&limit=200").catch(e=>{throw new Error("P7 notas chunk "+i+": "+e.message)})||[];
+            notas=notas.concat(res);
+          }
+        }
       }
     }
 
@@ -2063,10 +2061,11 @@ async function renderRutas(){
         notaNum:nota?nota.numero_nota:null,notaTipo:nota?nota.tipo_nota:null,
         notaMonto:nota?nota.monto:null,notaPdf:nota?nota.pdf_url:null};
     });
-    _rutaTab='hoy';_rutaFecha='';_rutaQ='';
+    const hayHoy=facturas.some(f=>f.fecha===today());
+    _rutaTab=hayHoy?'hoy':'buscar';_rutaFecha='';_rutaQ='';
     renderRutasUI();
   }catch(e){
-    $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:14px;margin-bottom:16px">Error al cargar rutas</div><div style="font-size:12px;color:#e53935;background:#ffebee;border-radius:8px;padding:8px 12px;margin-bottom:16px;text-align:left;word-break:break-all">${e.message}</div><button class="btn bs" onclick="renderRutas()">Reintentar</button></div>`;
+    $("mc").innerHTML=`<div class="topbar"><h2>🚚 Rutas</h2><button class="btn bs bsm" onclick="renderRutas()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:14px;margin-bottom:16px">Error al cargar rutas</div><div style="font-size:11px;color:#1976d2;background:#e3f2fd;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-weight:600">CÓDIGO v12 | rol:${U?.rol} | supIds:${supIds.length}</div><div style="font-size:12px;color:#e53935;background:#ffebee;border-radius:8px;padding:8px 12px;margin-bottom:16px;text-align:left;word-break:break-all">${e.message}</div><button class="btn bs" onclick="renderRutas()">Reintentar</button></div>`;
   }
 }
 function renderRutasUI(){
@@ -2382,6 +2381,326 @@ function showDashAplzModal(){
 function cerrarDashAplzModal(){
   const el=document.getElementById('dash-aplz-modal');
   if(el)el.style.display='none';
+}
+
+// ═══════════════════════════════════════════════════════
+// CONSIGNACIONES
+// ═══════════════════════════════════════════════════════
+let _cgTab='pend',_cgPend=[],_cgRevisa=[],_cgHist=[],_cgRepMap={},_cgFacMap={},_cgCliMap={};
+let _cgModalData=null,_cgModalSel=new Set();
+
+function _esRepartidor(nombre){
+  if(!nombre)return false;
+  const n=nombre.trim();
+  return !n.includes('@')&&!n.includes('.')&&!n.includes('/')&&!n.includes('#')&&n.length<50&&n.length>1;
+}
+
+async function renderConsig(){
+  $("mc").innerHTML=`<div class="topbar"><h2>💰 Consignaciones</h2><button class="btn bs bsm" onclick="renderConsig()">🔄</button></div><div style="padding:40px;text-align:center;color:var(--muted)">Cargando...</div>`;
+  try{
+    // Datos base
+    const [reps,deliCls,consigs]=await Promise.all([
+      api("repartidores","GET",null,"?select=id,nombre&limit=200"),
+      api("clientes","GET",null,"?select=id,nombre&limit=3000"),
+      api("consignaciones","GET",null,"?select=id,repartidor_id,fecha,monto_total,foto_url,estado,observaciones,registrado_en,revisado_por,observacion_revision&order=fecha.desc&limit=500")
+    ]);
+
+    _cgRepMap={};
+    (reps||[]).filter(r=>_esRepartidor(r.nombre)).forEach(r=>{_cgRepMap[r.id]=r.nombre;});
+    _cgCliMap={};(deliCls||[]).forEach(c=>{_cgCliMap[c.id]=c.nombre;});
+
+    // IDs de facturas ya consignadas
+    const cgIds=(consigs||[]).map(c=>c.id);
+    let cgFacs=[];
+    if(cgIds.length){
+      const sz=400;
+      for(let i=0;i<cgIds.length;i+=sz){
+        const ch=await api("consignacion_facturas","GET",null,"?select=consignacion_id,factura_id,monto&consignacion_id=in.("+cgIds.slice(i,i+sz).join(",")+")")||[];
+        cgFacs=[...cgFacs,...ch];
+      }
+    }
+    const consignedSet=new Set(cgFacs.map(cf=>cf.factura_id));
+    const cgFacMap={};cgFacs.forEach(cf=>{if(!cgFacMap[cf.consignacion_id])cgFacMap[cf.consignacion_id]=[];cgFacMap[cf.consignacion_id].push(cf);});
+
+    // Facturas últimos 90 días
+    const d90=new Date();d90.setDate(d90.getDate()-90);const desde90=d90.toISOString().split('T')[0];
+    const facs=await api("facturas","GET",null,"?select=id,consecutivo,fecha,cliente_id,repartidor_id&fecha=gte."+desde90+"&limit=8000")||[];
+    _cgFacMap={};facs.forEach(f=>{_cgFacMap[f.id]=f;});
+
+    // Entregas con efectivo en chunks
+    const facIds=facs.map(f=>f.id);let ents=[];
+    const sz=500;
+    for(let i=0;i<facIds.length;i+=sz){
+      const ch=await api("entregas","GET",null,"?select=id,factura_id,metodo_pago,monto_efectivo&factura_id=in.("+facIds.slice(i,i+sz).join(",")+")")||[];
+      ents=[...ents,...ch];
+    }
+
+    // Pendientes: efectivo no consignados (agrupados por repartidor normalizado)
+    const efEnt=ents.filter(e=>(e.metodo_pago==='efectivo'||Number(e.monto_efectivo)>0)&&!consignedSet.has(e.factura_id));
+    const byRep={};
+    efEnt.forEach(e=>{
+      const f=_cgFacMap[e.factura_id];if(!f)return;
+      const nom=_cgRepMap[f.repartidor_id];if(!nom)return;
+      const key=normNom(nom);
+      if(!byRep[key])byRep[key]={nombre:nom,repId:f.repartidor_id,items:[]};
+      byRep[key].items.push({factura_id:f.id,entrega_id:e.id,consecutivo:f.consecutivo,fecha:f.fecha,cliente:_cgCliMap[f.cliente_id]||'',monto:Number(e.monto_efectivo)||0});
+    });
+    // Ordenar items por fecha desc
+    Object.values(byRep).forEach(r=>r.items.sort((a,b)=>b.fecha.localeCompare(a.fecha)));
+    _cgPend=Object.values(byRep).sort((a,b)=>b.items.length-a.items.length);
+
+    // Por revisar (estado pendiente)
+    _cgRevisa=(consigs||[]).filter(c=>c.estado==='pendiente').map(c=>({...c,facturas:cgFacMap[c.id]||[]}));
+
+    // Historial (aprobada / rechazada)
+    _cgHist=(consigs||[]).filter(c=>c.estado!=='pendiente').map(c=>({...c,facturas:cgFacMap[c.id]||[]}));
+
+    renderConsigUI();
+  }catch(e){
+    $("mc").innerHTML=`<div class="topbar"><h2>💰 Consignaciones</h2><button class="btn bs bsm" onclick="renderConsig()">🔄</button></div><div style="padding:40px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:13px;color:#e53935">${e.message}</div></div>`;
+  }
+}
+
+function renderConsigUI(){
+  const col=t=>_cgTab===t?'var(--accent)':'var(--muted)';
+  const brd=t=>_cgTab===t?'3px solid var(--accent)':'3px solid transparent';
+  const totalPend=_cgPend.reduce((s,r)=>s+r.items.length,0);
+  const totalRevisa=_cgRevisa.length;
+  $("mc").innerHTML=`
+<div class="topbar" style="flex-direction:column;align-items:stretch;padding-bottom:0;gap:0">
+  <div style="display:flex;align-items:center;margin-bottom:10px">
+    <h2 style="margin:0">💰 Consignaciones</h2>
+    <button class="btn bs bsm" style="margin-left:auto" onclick="renderConsig()">🔄</button>
+  </div>
+  <div style="display:flex;border-top:1px solid var(--border)">
+    <div onclick="_cgTab='pend';renderConsigUI()" style="flex:1;text-align:center;padding:10px 4px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:${brd('pend')};color:${col('pend')}">
+      Sin consignar${totalPend?` <span style="background:#e53935;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${totalPend}</span>`:''}
+    </div>
+    <div onclick="_cgTab='revisa';renderConsigUI()" style="flex:1;text-align:center;padding:10px 4px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:${brd('revisa')};color:${col('revisa')}">
+      Por revisar${totalRevisa?` <span style="background:#ff9800;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${totalRevisa}</span>`:''}
+    </div>
+    <div onclick="_cgTab='hist';renderConsigUI()" style="flex:1;text-align:center;padding:10px 4px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:${brd('hist')};color:${col('hist')}">Historial</div>
+  </div>
+</div>
+<div style="padding:16px 0 80px">
+  ${_cgTab==='pend'?_renderCgPend():_cgTab==='revisa'?_renderCgRevisa():_renderCgHist()}
+</div>`;
+}
+
+function _renderCgPend(){
+  if(!_cgPend.length)return`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">✅</div><div>Todos los conductores al día</div></div>`;
+  return _cgPend.map((rep,ri)=>{
+    const total=rep.items.reduce((s,i)=>s+i.monto,0);
+    const rows=rep.items.slice(0,5).map(it=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5">
+        <div style="font-size:12px">
+          <span style="font-weight:700;font-family:monospace;color:var(--accent)">#${it.consecutivo}</span>
+          <span style="color:var(--muted);margin-left:6px">${it.cliente||'—'}</span>
+        </div>
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;margin-left:8px">$${Math.round(it.monto).toLocaleString('es-CO')}</div>
+      </div>`).join('');
+    const extra=rep.items.length>5?`<div style="font-size:11px;color:var(--muted);padding:6px 0">+${rep.items.length-5} más...</div>`:'';
+    return`<div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-weight:700;font-size:15px">🚚 ${rep.nombre}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${rep.items.length} factura${rep.items.length!==1?'s':''} · efectivo pendiente</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <div style="font-size:16px;font-weight:800;color:var(--accent)">$${Math.round(total).toLocaleString('es-CO')}</div>
+          <button onclick="_abrirCgModal(${ri})" style="margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;font-family:var(--ff);cursor:pointer">+ Crear consignación</button>
+        </div>
+      </div>
+      ${rows}${extra}
+    </div>`;
+  }).join('');
+}
+
+function _renderCgRevisa(){
+  if(!_cgRevisa.length)return`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">✅</div><div>Sin consignaciones pendientes de revisión</div></div>`;
+  return _cgRevisa.map(c=>{
+    const nom=_cgRepMap[c.repartidor_id]||'Conductor desconocido';
+    const ts=c.registrado_en?new Date(c.registrado_en).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}):'';
+    return`<div style="background:#fff;border:1.5px solid #ffb300;border-radius:14px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-weight:700;font-size:15px">🚚 ${nom}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">📅 ${c.fecha} · ${ts}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:1px">${(c.facturas||[]).length} factura${(c.facturas||[]).length!==1?'s':''}</div>
+        </div>
+        <div style="font-size:18px;font-weight:800;color:var(--accent);flex-shrink:0;margin-left:10px">$${Math.round(Number(c.monto_total||0)).toLocaleString('es-CO')}</div>
+      </div>
+      ${c.observaciones?`<div style="font-size:12px;color:var(--muted);background:var(--bg);border-radius:8px;padding:8px;margin-bottom:10px">${c.observaciones}</div>`:''}
+      ${c.foto_url?`<button onclick="window.open('${c.foto_url}','_blank')" style="width:100%;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:8px;padding:9px;font-size:12px;font-weight:700;font-family:var(--ff);cursor:pointer;margin-bottom:8px">📎 Ver soporte de consignación</button>`:'<div style="font-size:12px;color:#e53935;margin-bottom:8px">⚠️ Sin soporte adjunto</div>'}
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="_aprobarCg('${c.id}')" style="flex:1;background:#4caf50;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;font-family:var(--ff);cursor:pointer">✅ Aprobar</button>
+        <button onclick="_rechazarCg('${c.id}')" style="flex:1;background:#f44336;color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;font-family:var(--ff);cursor:pointer">❌ Rechazar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _renderCgHist(){
+  if(!_cgHist.length)return`<div style="text-align:center;padding:48px 20px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">📋</div><div>Sin historial</div></div>`;
+  const byDate={};
+  _cgHist.forEach(c=>{const d=c.fecha||'—';if(!byDate[d])byDate[d]=[];byDate[d].push(c);});
+  return Object.keys(byDate).sort().reverse().map(fecha=>{
+    const items=byDate[fecha];
+    const dayTotal=items.reduce((s,c)=>s+Number(c.monto_total||0),0);
+    const rows=items.map(c=>{
+      const nom=_cgRepMap[c.repartidor_id]||'—';
+      const esAp=c.estado==='aprobada';
+      const bg=esAp?'#e8f5e9':'#ffebee',tc=esAp?'#2e7d32':'#c62828',lbl=esAp?'Aprobada':'Rechazada';
+      return`<div style="background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:600;font-size:13px">🚚 ${nom}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${(c.facturas||[]).length} factura${(c.facturas||[]).length!==1?'s':''}</div>
+            ${c.observacion_revision?`<div style="font-size:11px;color:#666;margin-top:3px">💬 ${c.observacion_revision}</div>`:''}
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:8px">
+            <div style="font-weight:700;font-size:14px">$${Math.round(Number(c.monto_total||0)).toLocaleString('es-CO')}</div>
+            <span style="font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:${bg};color:${tc}">${lbl}</span>
+          </div>
+        </div>
+        ${c.foto_url?`<button onclick="window.open('${c.foto_url}','_blank')" style="margin-top:8px;width:100%;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:7px;padding:7px;font-size:11px;font-weight:600;font-family:var(--ff);cursor:pointer">📎 Ver soporte</button>`:''}
+      </div>`;
+    }).join('');
+    return`<div style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 2px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px">📅 ${fecha}</div>
+        <div style="font-size:13px;font-weight:700">$${Math.round(dayTotal).toLocaleString('es-CO')}</div>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+function _abrirCgModal(repIdx){
+  const rep=_cgPend[repIdx];if(!rep)return;
+  _cgModalData=rep;
+  _cgModalSel=new Set(rep.items.map(i=>i.factura_id));
+  let m=document.getElementById('cg-modal');
+  if(!m){
+    m=document.createElement('div');m.id='cg-modal';
+    m.style.cssText='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:flex-end;justify-content:center;overflow:hidden';
+    m.onclick=function(e){if(e.target===m)_cerrarCgModal();};
+    document.body.appendChild(m);
+  }
+  _renderCgModal();
+  m.style.display='flex';
+}
+
+function _renderCgModal(){
+  const m=document.getElementById('cg-modal');if(!m||!_cgModalData)return;
+  const rep=_cgModalData;
+  const selItems=rep.items.filter(i=>_cgModalSel.has(i.factura_id));
+  const total=selItems.reduce((s,i)=>s+i.monto,0);
+  const rows=rep.items.map((it,idx)=>{
+    const sel=_cgModalSel.has(it.factura_id);
+    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">
+      <input type="checkbox" data-cg-idx="${idx}" ${sel?'checked':''} style="width:18px;height:18px;cursor:pointer;accent-color:var(--accent)" onchange="_toggleCgFac(${idx},this.checked)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-family:monospace;font-size:13px;color:var(--accent)">#${it.consecutivo}</div>
+        <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.cliente||'—'} · ${it.fecha}</div>
+      </div>
+      <div style="font-weight:700;font-size:13px;white-space:nowrap">$${Math.round(it.monto).toLocaleString('es-CO')}</div>
+    </label>`;
+  }).join('');
+  m.innerHTML=`<div style="background:#fff;border-radius:20px 20px 0 0;padding:20px 18px 40px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto">
+    <div style="width:40px;height:4px;background:#eee;border-radius:2px;margin:0 auto 16px"></div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:2px">💰 Nueva consignación</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:14px">🚚 ${rep.nombre}</div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Facturas a consignar</div>
+    ${rows}
+    <div style="margin-top:12px;background:#f0f4ff;border-radius:10px;padding:11px 14px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:600;color:var(--muted)">${selItems.length} seleccionada${selItems.length!==1?'s':''}</span>
+      <span style="font-size:18px;font-weight:800;color:var(--accent)">$${Math.round(total).toLocaleString('es-CO')}</span>
+    </div>
+    <div style="margin-top:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px">Fecha de consignación</div>
+      <input id="cg-fecha" type="date" value="${today()}" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:var(--ff);box-sizing:border-box">
+    </div>
+    <div style="margin-top:10px">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px">Soporte (foto o PDF del recibo)</div>
+      <input id="cg-foto" type="file" accept="image/*,.pdf" style="width:100%;font-size:13px;padding:4px">
+    </div>
+    <div style="margin-top:10px">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px">Observaciones</div>
+      <textarea id="cg-obs" rows="2" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:var(--ff);resize:none;box-sizing:border-box" placeholder="Banco, número de recibo..."></textarea>
+    </div>
+    <button id="cg-guardar-btn" onclick="_guardarCg()" style="margin-top:16px;width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;font-family:var(--ff);cursor:pointer">Guardar consignación</button>
+    <button onclick="_cerrarCgModal()" style="margin-top:8px;width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:12px;font-size:14px;font-weight:600;font-family:var(--ff);cursor:pointer;color:var(--muted)">Cancelar</button>
+  </div>`;
+}
+
+function _toggleCgFac(idx,checked){
+  const item=_cgModalData?.items[idx];if(!item)return;
+  if(checked)_cgModalSel.add(item.factura_id);else _cgModalSel.delete(item.factura_id);
+  _renderCgModal();
+}
+
+function _cerrarCgModal(){
+  const m=document.getElementById('cg-modal');if(m)m.style.display='none';
+  _cgModalData=null;_cgModalSel=new Set();
+}
+
+async function _guardarCg(){
+  const rep=_cgModalData;if(!rep)return;
+  const selItems=rep.items.filter(i=>_cgModalSel.has(i.factura_id));
+  if(!selItems.length){showT('Selecciona al menos una factura','warning');return;}
+  const fecha=$('cg-fecha')?.value||today();
+  const obs=($('cg-obs')?.value||'').trim();
+  const fileInput=$('cg-foto');
+  const btn=$('cg-guardar-btn');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  try{
+    const total=selItems.reduce((s,i)=>s+i.monto,0);
+    const cg=await api("consignaciones","POST",{repartidor_id:rep.repId,fecha,monto_total:total,estado:'pendiente',observaciones:obs||null});
+    const cgId=cg?.[0]?.id;if(!cgId)throw new Error('No se pudo crear la consignación');
+
+    // Subir foto si hay
+    if(fileInput?.files?.length){
+      const file=fileInput.files[0];
+      const ext=file.name.split('.').pop().toLowerCase();
+      const path=`consig_${rep.repId}_${Date.now()}.${ext}`;
+      const resp=await fetch(`${SB}/storage/v1/object/facturas-fotos/${path}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':file.type,'x-upsert':'true'},body:file});
+      if(resp.ok){
+        const fotoUrl=`${SB}/storage/v1/object/public/facturas-fotos/${path}`;
+        await api("consignaciones","PATCH",{foto_url:fotoUrl},"?id=eq."+cgId);
+      }
+    }
+
+    // Registrar facturas
+    await Promise.all(selItems.map(i=>api("consignacion_facturas","POST",{consignacion_id:cgId,factura_id:i.factura_id,monto:i.monto})));
+
+    _cerrarCgModal();
+    showT('Consignación registrada ✓ — queda pendiente de revisión','success');
+    await renderConsig();
+  }catch(e){
+    showT(e.message,'error');
+    if(btn){btn.disabled=false;btn.textContent='Guardar consignación';}
+  }
+}
+
+async function _aprobarCg(id){
+  const obs=prompt('Observación (opcional):');
+  if(obs===null)return;
+  try{
+    await api("consignaciones","PATCH",{estado:'aprobada',revisado_por:U.usuario,observacion_revision:obs||null},"?id=eq."+id);
+    showT('Consignación aprobada ✓','success');
+    await renderConsig();
+  }catch(e){showT(e.message,'error');}
+}
+
+async function _rechazarCg(id){
+  const obs=prompt('Motivo del rechazo:');
+  if(!obs){showT('Escribe el motivo del rechazo','warning');return;}
+  try{
+    await api("consignaciones","PATCH",{estado:'rechazada',revisado_por:U.usuario,observacion_revision:obs},"?id=eq."+id);
+    showT('Consignación rechazada','info');
+    await renderConsig();
+  }catch(e){showT(e.message,'error');}
 }
 </script>
 </body>
