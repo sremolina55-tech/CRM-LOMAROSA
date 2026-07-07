@@ -2010,7 +2010,7 @@ async function renderRutas(){
   }
   try{
     // 1. Nombres del vendedor en el CRM
-    const misCls=await api("crm_clientes","GET",null,"?select=nombre"+vF());
+    const misCls=await api("crm_clientes","GET",null,"?select=nombre&limit=5000"+vF());
     _rutaClNms=new Set((misCls||[]).map(c=>normNom(c.nombre)));
     if(_rutaClNms.size===0){_rutaData=[];_rutaTab='hoy';_rutaFecha='';_rutaQ='';renderRutasUI();return}
 
@@ -2025,24 +2025,39 @@ async function renderRutas(){
     const matchIds=(deliCls||[]).filter(c=>_rutaClNms.has(normNom(c.nombre))).map(c=>c.id);
     if(!matchIds.length){_rutaData=[];_rutaTab='hoy';_rutaFecha='';_rutaQ='';renderRutasUI();return}
 
-    // 4. Traer solo facturas de esos clientes, últimos 90 días
+    // 4. Traer solo facturas de esos clientes, últimos 90 días (en chunks para no exceder URL)
     const d90=new Date();d90.setDate(d90.getDate()-90);const desde90=d90.toISOString().split('T')[0];
     const rMap={};(repartidores||[]).forEach(r=>rMap[r.id]=r.nombre);
-    const idStr=matchIds.join(",");
-    const facturas=await api("facturas","GET",null,"?select=id,consecutivo,fecha,estado,kg_facturados,sucursal,cliente_id,repartidor_id&cliente_id=in.("+idStr+")&fecha=gte."+desde90+"&order=fecha.desc&limit=5000");
+    let facturas=[];
+    for(let i=0;i<matchIds.length;i+=150){
+      const chunk=matchIds.slice(i,i+150);
+      const res=await api("facturas","GET",null,"?select=id,consecutivo,fecha,estado,kg_facturados,sucursal,cliente_id,repartidor_id&cliente_id=in.("+chunk.join(",")+")"+"&fecha=gte."+desde90+"&order=fecha.desc&limit=5000")||[];
+      facturas=facturas.concat(res);
+    }
 
-    // 5. Entregas filtradas por las facturas de este vendedor (evita traer todo)
+    // 5. Entregas filtradas por las facturas de este vendedor (en chunks)
     const facIds=(facturas||[]).map(f=>f.id);
     let entregas=[],novedades=[],notas=[];
     if(facIds.length){
-      const facIdStr=facIds.join(",");
-      entregas=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+facIdStr+")&limit=5000")||[];
+      for(let i=0;i<facIds.length;i+=200){
+        const chunk=facIds.slice(i,i+200);
+        const res=await api("entregas","GET",null,"?select=id,factura_id,kg_recibidos,metodo_pago,monto_efectivo,monto_transferencia,observaciones,registrado_en,foto_url&factura_id=in.("+chunk.join(",")+")"+"&limit=2000")||[];
+        entregas=entregas.concat(res);
+      }
       const entIds=entregas.map(e=>e.id);
       if(entIds.length){
-        novedades=await api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&entrega_id=in.("+entIds.join(",")+")")||[];
+        for(let i=0;i<entIds.length;i+=200){
+          const chunk=entIds.slice(i,i+200);
+          const res=await api("novedades","GET",null,"?select=id,entrega_id,tipo,diferencia,estado&entrega_id=in.("+chunk.join(",")+")")||[];
+          novedades=novedades.concat(res);
+        }
         const novIds=novedades.map(n=>n.id);
         if(novIds.length){
-          notas=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+novIds.join(",")+")")||[];
+          for(let i=0;i<novIds.length;i+=200){
+            const chunk=novIds.slice(i,i+200);
+            const res=await api("notas","GET",null,"?select=id,novedad_id,tipo_nota,numero_nota,monto,pdf_url&novedad_id=in.("+chunk.join(",")+")")||[];
+            notas=notas.concat(res);
+          }
         }
       }
     }
