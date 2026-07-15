@@ -119,9 +119,7 @@ td{padding:10px 12px;border-bottom:1px solid #f0f0f0}tr{cursor:pointer}tr:hover 
 <script>
 (function(){const v="13";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
 const SB="https://pqcgibsdewrrbukibubd.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxY2dpYnNkZXdycmJ1a2lidWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTQyMDQsImV4cCI6MjA5MDM3MDIwNH0.7WnJydoru0E_aOGkyMGxPgZXTAEVmu4KQwqPPM-W14A";
-const XIRUX_URL="https://web.cloudxirux.com:35619/app/api/Ventas/InformesVentas",XIRUX_TOK="WS-fcaaa165-4331be4b-a81793df";
 let U=null,vendedores=[],tipologias=[],sectores=[],listasP=[],clientes=[],visitas=[],productos=[],pedidos=[],supIds=[],metas=[],prospectos=[],actividades=[],_dashAplzPend=[],_dashNovedades=[];
-let _xiruxVentas={};
 let _agFecha="",_agMes="";
 let editingId=null,pedLineas=[],pedTab=1,_pedData={},_visClId=null,_tipoPed="normal";
 let _antecResult=null,_antecTimer=null;
@@ -258,32 +256,6 @@ async function loadProsp(extra=""){try{prospectos=await api("crm_prospectos","GE
 function prospVendNombre(p){return vendedores.find(v=>v.id===p.vendedor_id)?.nombre||"—"}
 function prospTipNombre(p){return tipologias.find(t=>t.id===p.tipologia_id)?.nombre||"—"}
 
-// ═══ XIRUX ERP VENTAS ═══
-function _matchXiruxVend(nombre){
-  if(!nombre||!Object.keys(_xiruxVentas).length)return null;
-  const toks=normNom(nombre).split(' ').filter(t=>t.length>2);
-  if(!toks.length)return null;
-  let best=null,bestScore=0;
-  for(const xv of Object.keys(_xiruxVentas)){
-    const xt=normNom(xv).split(' ');
-    const score=toks.filter(t=>xt.includes(t)).length;
-    if(score>=2&&score>bestScore){best=xv;bestScore=score;}
-  }
-  return best;
-}
-async function loadXiruxVentas(){
-  try{
-    const body={Token:XIRUX_TOK,FechaIni:curMonth()+"-01",FechaFin:today(),CodCruce:"",Tercero:"",IdUsuari:"ACTIVESOFT"};
-    const [r9,r11]=await Promise.all([
-      fetch(XIRUX_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,Reporte:"9"})}).then(r=>r.json()),
-      fetch(XIRUX_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,Reporte:"11"})}).then(r=>r.json())
-    ]);
-    const nitVend={};(r11.Filas||[]).forEach(r=>{if(r.Nit&&r.Vendedor)nitVend[r.Nit]=r.Vendedor;});
-    _xiruxVentas={};
-    (r9.Filas||[]).forEach(f=>{const vend=nitVend[f.Nit];if(vend)_xiruxVentas[vend]=(_xiruxVentas[vend]||0)+parseFloat(f.VrNeto||0);});
-  }catch(e){_xiruxVentas={};}
-}
-
 // ═══ DASHBOARD ═══
 async function renderDash(){await loadCl();await loadVis(today());await loadPed("&fecha=eq."+today());
 if(!_agMes)_agMes=today().slice(0,7);if(!_agFecha)_agFecha=today();await loadActs();
@@ -340,49 +312,9 @@ ${actsHoy.slice(0,6).map(a=>{const t=ACT_TIPOS.find(x=>x.v===a.tipo)||{ic:"📋"
 ${actsHoy.length>6?`<div style="text-align:center;padding-top:8px;font-size:12px;color:var(--accent);cursor:pointer" onclick="showView('agenda')">+${actsHoy.length-6} más →</div>`:""}
 </div>`:""}
 
-<div id="dash-xirux"><div style="background:#f5f5f5;border-radius:12px;padding:14px 16px;margin-bottom:16px;color:var(--muted);font-size:13px;text-align:center">⏳ Cargando facturación ERP...</div></div>
 ${vR?`<div class="st">Por vendedor</div><div class="tw"><table><thead><tr><th>Vendedor</th><th>Visitas</th><th>Pedidos</th><th>Venta</th></tr></thead><tbody>${vR}</tbody></table></div>`:""}
 ${_dashNovedades.length>0?`<div class="st" style="margin-top:8px">⚠ Novedades de entrega — últimos 30 días</div><div class="tw" style="margin-bottom:20px"><table><thead><tr><th>Cliente</th><th>Factura</th><th>Fecha</th><th>Motivo</th></tr></thead><tbody>${_dashNovedades.map(n=>`<tr><td style="font-weight:600;font-size:13px">${escHtml(n.cliente)}</td><td style="font-family:monospace;font-size:12px;color:var(--muted)">${escHtml(n.consecutivo)}</td><td style="font-size:12px;white-space:nowrap">${n.fecha}</td><td><span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">${escHtml(n.motivo)}</span></td></tr>`).join("")}</tbody></table></div>`:""}
 `
-_renderDashXirux();
-}
-
-function _renderDashXirux(){
-  const el=$("dash-xirux");if(!el)return;
-  loadXiruxVentas().then(()=>{
-    if(!Object.keys(_xiruxVentas).length){el.innerHTML='';return;}
-    let html='';
-    if(U.rol==='vendedor'){
-      const xv=_matchXiruxVend(U.nombre_display);
-      const total=xv?(_xiruxVentas[xv]||0):0;
-      html=`<div style="background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:1.5px solid #a5d6a7;border-radius:14px;padding:16px 18px;margin-bottom:16px">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#2e7d32;font-weight:700;margin-bottom:4px">📊 Facturación ERP — ${curMonth()}</div>
-        <div style="font-size:30px;font-weight:900;color:#1b5e20">${fmt(total)}</div>
-        <div style="font-size:11px;color:#388e3c;margin-top:4px">Ventas confirmadas en el sistema de despacho</div>
-      </div>`;
-    } else {
-      const team=U.rol==='lider'?vendedores.filter(v=>supIds.includes(v.id)):vendedores;
-      const rows=team.map(v=>{const xv=_matchXiruxVend(v.nombre);return{nombre:v.nombre,total:xv?(_xiruxVentas[xv]||0):0};}).sort((a,b)=>b.total-a.total);
-      const grandTotal=rows.reduce((s,r)=>s+r.total,0);
-      if(grandTotal>0){
-        html=`<div class="st" style="margin-top:4px">📊 Facturación ERP — ${curMonth()}</div>
-        <div class="tw" style="margin-bottom:16px"><table>
-          <thead><tr><th>Vendedor</th><th style="text-align:right">Facturación</th></tr></thead>
-          <tbody>
-            ${rows.map(r=>`<tr>
-              <td style="font-weight:600">${r.nombre}</td>
-              <td style="font-weight:700;text-align:right;color:${r.total>0?'#2e7d32':'var(--muted)'}">${r.total>0?fmt(r.total):'—'}</td>
-            </tr>`).join('')}
-            <tr style="border-top:2px solid var(--border)">
-              <td style="font-weight:800">Total equipo</td>
-              <td style="font-weight:800;text-align:right;color:var(--accent)">${fmt(grandTotal)}</td>
-            </tr>
-          </tbody>
-        </table></div>`;
-      }
-    }
-    el.innerHTML=html;
-  }).catch(()=>{el.innerHTML='';});
 }
 
 // ═══ INFORME MENSUAL + METAS ═══
