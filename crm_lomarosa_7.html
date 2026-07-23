@@ -117,7 +117,7 @@ td{padding:10px 12px;border-bottom:1px solid #f0f0f0}tr{cursor:pointer}tr:hover 
 <div class="mn" id="mnav"></div><div class="main" id="mc"></div></div>
 <div class="toast" id="toast"><span id="toast-msg"></span><button style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px" onclick="hideT()">×</button></div>
 <script>
-(function(){const v="19";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
+(function(){const v="20";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
 const SB="https://pqcgibsdewrrbukibubd.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxY2dpYnNkZXdycmJ1a2lidWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTQyMDQsImV4cCI6MjA5MDM3MDIwNH0.7WnJydoru0E_aOGkyMGxPgZXTAEVmu4KQwqPPM-W14A";
 let U=null,vendedores=[],tipologias=[],sectores=[],listasP=[],clientes=[],visitas=[],productos=[],pedidos=[],supIds=[],metas=[],prospectos=[],actividades=[],_dashAplzPend=[],_dashNovedades=[];
 let _agFecha="",_agMes="";
@@ -697,7 +697,7 @@ async function enviarXiruxPed(pid){
     Tercero:tercero,
     Vendedor:vendedor,
     PuntoVenta:ped.crm_sucursales?.codigo_sucursal||"1",
-    Detalle:det.map((d,i)=>{const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:0};if(d.descuento_pct)it.PorDesc=d.descuento_pct;return it;})
+    Detalle:det.map((d,i)=>{const esTAT=["2130","2132"].includes(ped.operacion||"2130");const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:esTAT?d.valor_unitario:0};if(d.descuento_pct)it.PorDesc=d.descuento_pct;return it;})
   };
   if(ped.observaciones)body.Observacion=ped.observaciones;
   try{
