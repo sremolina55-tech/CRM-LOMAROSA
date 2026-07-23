@@ -117,7 +117,7 @@ td{padding:10px 12px;border-bottom:1px solid #f0f0f0}tr{cursor:pointer}tr:hover 
 <div class="mn" id="mnav"></div><div class="main" id="mc"></div></div>
 <div class="toast" id="toast"><span id="toast-msg"></span><button style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px" onclick="hideT()">×</button></div>
 <script>
-(function(){const v="21";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
+(function(){const v="22";if(localStorage.getItem("_crm_v")!==v){localStorage.setItem("_crm_v",v);location.reload(true);}})();
 const SB="https://pqcgibsdewrrbukibubd.supabase.co",KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxY2dpYnNkZXdycmJ1a2lidWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTQyMDQsImV4cCI6MjA5MDM3MDIwNH0.7WnJydoru0E_aOGkyMGxPgZXTAEVmu4KQwqPPM-W14A";
 let U=null,vendedores=[],tipologias=[],sectores=[],listasP=[],clientes=[],visitas=[],productos=[],pedidos=[],supIds=[],metas=[],prospectos=[],actividades=[],_dashAplzPend=[],_dashNovedades=[];
 let _agFecha="",_agMes="";
@@ -432,7 +432,7 @@ if(pedTab===1){ct=`<div class="tab-body">
 <div class="field"><label>Observaciones</label><textarea id="pd-obs">${_pedData.obs||""}</textarea></div>
 <div class="fa"><button class="btn bp" onclick="goTab2()">Siguiente → Detalle</button></div></div>`;
 setTimeout(()=>{_ssPedCl=ssCreate("ss-ped-cl",clOpts,"Buscar...",v=>{_pedData.cl=v;ldSuc()});_ssPedCl.setValue(selCl);ldSuc()},30);
-}else if(pedTab===2){const sub=pedLineas.reduce((s,l)=>s+l.total,0);const canPr=CAN_PR.includes(U.usuario);const rows=pedLineas.map((l,i)=>`<tr><td style="font-weight:600">${l.codigo}</td><td>${l.nombre}</td><td style="color:var(--muted)">${l.unidad}</td><td><input type="number" min="1" value="${l.qty}" onchange="uLn(${i},this.value)" style="width:60px"></td>${isTAT?`<td style="text-align:right">${canPr?`<input type="number" min="0" value="${l.valor}" onchange="uPrc(${i},this.value)" style="width:85px;text-align:right;padding:5px 6px;border:1px solid var(--border);border-radius:4px">`:`${fmtN(l.valor)}`}</td><td><input type="number" min="0" max="100" value="${l.dscPct||0}" onchange="uDsc(${i},this.value)" style="width:55px"></td><td style="text-align:right;font-weight:700">${fmtN(l.total)}</td>`:""}<td style="text-align:center"><button onclick="rLn(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;font-weight:800">✕</button></td></tr>`).join("");
+}else if(pedTab===2){const sub=pedLineas.reduce((s,l)=>s+l.total,0);const canPr=CAN_PR.includes(U.usuario);const rows=pedLineas.map((l,i)=>`<tr style="${l.esObsequio?"background:#f3e5f5":""}"><td style="font-weight:600">${l.codigo}</td><td>${l.nombre}</td><td style="color:var(--muted)">${l.unidad}</td><td><input type="number" min="1" value="${l.qty}" onchange="uLn(${i},this.value)" style="width:60px"></td>${isTAT?`<td style="text-align:right">${l.esObsequio?'<span style="color:#7b1fa2;font-size:12px">🎁 Regalo</span>':canPr?`<input type="number" min="0" value="${l.valor}" onchange="uPrc(${i},this.value)" style="width:85px;text-align:right;padding:5px 6px;border:1px solid var(--border);border-radius:4px">`:fmtN(l.valor)}</td><td>${l.esObsequio?'<span style="color:#7b1fa2;font-size:11px">100%</span>':`<input type="number" min="0" max="100" value="${l.dscPct||0}" onchange="uDsc(${i},this.value)" style="width:55px">`}</td><td style="text-align:right;font-weight:700">${l.esObsequio?'<span style="color:#7b1fa2">$0</span>':fmtN(l.total)}</td>`:""}<td style="text-align:center;white-space:nowrap"><button onclick="uObsequio(${i})" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:${l.esObsequio?1:0.3};padding:0 2px" title="${l.esObsequio?'Quitar obsequio':'Marcar como obsequio'}">🎁</button><button onclick="rLn(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;font-weight:800">✕</button></td></tr>`).join("");
 ct=`<div class="tab-body"><div style="margin-bottom:16px"><label style="font-size:13px;font-weight:700;color:var(--accent)">Producto:</label><div class="psr" style="margin-top:8px"><input id="ps-i" placeholder="🔍 Buscar producto..." oninput="sP(this.value)" autocomplete="off" style="font-size:14px;padding:12px 14px"><div class="psr-r" id="ps-r"></div></div></div>
 <div style="overflow-x:auto"><table class="det-table"><thead><tr><th>Prod</th><th>Descripción</th><th>Uni</th><th>Cant</th>${isTAT?`<th>Vr.Unit</th><th>Desc%</th><th>Total</th>`:""}<th></th></tr></thead><tbody>${rows||`<tr><td colspan="${isTAT?8:5}" class="empty">Busca y agrega</td></tr>`}</tbody></table></div>
 ${isTAT?`<div style="text-align:right;margin-top:12px;font-size:16px;font-weight:800;color:var(--accent)">Subtotal: ${fmt(sub)}</div>`:""}
@@ -451,6 +451,7 @@ function uLn(i,v){const q=parseInt(v)||1;pedLineas[i].qty=q;const d=pedLineas[i]
 function uDsc(i,v){const d=Math.min(100,Math.max(0,parseInt(v)||0));pedLineas[i].dscPct=d;const b=pedLineas[i].valor*pedLineas[i].qty;pedLineas[i].desc=Math.round(b*d/100);pedLineas[i].total=b-pedLineas[i].desc;drawPedInline()}
 function uPrc(i,v){const p=Math.max(0,parseFloat(v)||0);pedLineas[i].valor=p;const d=pedLineas[i].dscPct||0;const b=p*pedLineas[i].qty;pedLineas[i].desc=Math.round(b*d/100);pedLineas[i].total=b-pedLineas[i].desc;drawPedInline()}
 function rLn(i){pedLineas.splice(i,1);drawPedInline()}
+function uObsequio(i){const l=pedLineas[i];l.esObsequio=!l.esObsequio;if(l.esObsequio){l._vo=l.valor;l.dscPct=100;l.desc=Math.round(l.valor*l.qty);l.total=0;}else{l.valor=l._vo||l.valor;l.dscPct=0;const b=l.valor*l.qty;l.desc=0;l.total=b;}drawPedInline();}
 
 async function envPed(){if(!_pedData.cl||!pedLineas.length){showT("Faltan datos","error");return}
 const clCheck=clientes.find(c=>c.id===_pedData.cl);
@@ -697,7 +698,7 @@ async function enviarXiruxPed(pid){
     Tercero:tercero,
     Vendedor:vendedor,
     PuntoVenta:ped.crm_sucursales?.codigo_sucursal||"1",
-    Detalle:det.map((d,i)=>{const esTAT=["2130","2131","2132"].includes(ped.operacion||"2130");const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:esTAT?d.valor_unitario:0};if(d.descuento_pct)it.PorDesc=d.descuento_pct;return it;})
+    Detalle:det.map((d,i)=>{const esTAT=["2130","2131","2132"].includes(ped.operacion||"2130");const desc100=d.descuento_pct>=100;const it={NumItem:i+1,Producto:d.crm_productos?.codigo||"",Cantidad:d.cantidad,Valor:desc100?1:esTAT?d.valor_unitario:0};if(d.descuento_pct&&!desc100)it.PorDesc=d.descuento_pct;return it;})
   };
   if(ped.observaciones)body.Observacion=ped.observaciones;
   try{
