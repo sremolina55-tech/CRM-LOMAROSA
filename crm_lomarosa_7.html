@@ -822,9 +822,41 @@ async function exportPedExcel(){
 }
 
 // ═══ CLIENTES ═══
-async function renderClList(){await loadCl();const sinErpCount=clientes.filter(c=>!c.xirux_sync).length;$("mc").innerHTML=`<div class="topbar"><h2>Clientes</h2><button class="btn bp bsm" onclick="renderClForm()">+ Nuevo</button></div><div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><input placeholder="🔍 Buscar..." id="cf-s" oninput="fCl()" style="flex:1"><button id="btn-sin-erp" class="mbtn" onclick="toggleFiltERP()" title="Mostrar solo clientes sin sincronizar con ERP">Sin ERP <span style="background:#f44336;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${sinErpCount}</span></button></div><div class="tw"><table><thead><tr><th>NIT/CC</th><th>Nombre</th><th>Ciudad</th><th>Tipología</th><th>ERP</th></tr></thead><tbody id="cl-tb"></tbody></table></div>`;fCl()}
+async function renderClList(){await loadCl();const sinErpCount=clientes.filter(c=>!c.xirux_sync).length;$("mc").innerHTML=`<div class="topbar"><h2>Clientes <span style="font-size:13px;font-weight:400;color:var(--muted)">(${clientes.length})</span></h2><button class="btn bp bsm" onclick="renderClForm()">+ Nuevo</button></div><div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><input placeholder="🔍 Buscar por nombre, NIT, ciudad o vendedor..." id="cf-s" oninput="fCl()" style="flex:1"><button id="btn-sin-erp" class="mbtn" onclick="toggleFiltERP()" title="Mostrar solo clientes sin sincronizar con ERP">Sin ERP <span style="background:#f44336;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px">${sinErpCount}</span></button></div><div id="cl-list"></div>`;fCl()}
 function toggleFiltERP(){const btn=$("btn-sin-erp");btn.classList.toggle("sel");fCl()}
-function fCl(){const q=($("cf-s")?.value||"").toLowerCase();const sinErp=$("btn-sin-erp")?.classList.contains("sel");const f=clientes.filter(c=>{if(sinErp&&c.xirux_sync)return false;return !q||(c.nombre||"").toLowerCase().includes(q)||(c.codigo||"").includes(q)||(c.ciudad||"").toLowerCase().includes(q)});$("cl-tb").innerHTML=f.length?f.map(c=>`<tr onclick="eCl('${c.id}')"><td style="font-family:monospace;font-size:12px;color:var(--muted)">${c.codigo}</td><td style="font-weight:600">${c.nombre}</td><td style="color:var(--muted)">${c.ciudad||""}</td><td>${c.clasificacion_a?'<span class="badge ba">'+claseANombre(c.clasificacion_a)+'</span>':"—"}</td><td>${c.xirux_sync?'<span class="badge bg" style="font-size:9px">✓ ERP</span>':'<span class="badge br" style="font-size:9px">Sin ERP</span>'}</td></tr>`).join(""):'<tr><td colspan="5" class="empty">Sin resultados</td></tr>'}
+function fCl(){
+  const q=($("cf-s")?.value||"").toLowerCase();
+  const sinErp=$("btn-sin-erp")?.classList.contains("sel");
+  const f=clientes.filter(c=>{
+    if(sinErp&&c.xirux_sync)return false;
+    return !q||(c.nombre||"").toLowerCase().includes(q)||(c.codigo||"").includes(q)||(c.ciudad||"").toLowerCase().includes(q)||(c.crm_vendedores?.nombre||"").toLowerCase().includes(q)||(c.crm_tipologias?.nombre||"").toLowerCase().includes(q);
+  });
+  const el=$("cl-list");if(!el)return;
+  if(!f.length){el.innerHTML='<p class="empty">Sin resultados</p>';return;}
+  el.innerHTML=f.map(c=>{
+    const erpBadge=c.xirux_sync?'<span class="badge bg" style="font-size:9px">✓ ERP</span>':'<span class="badge br" style="font-size:9px">Sin ERP</span>';
+    const claseABadge=c.clasificacion_a?`<span class="badge ba" style="font-size:9px;margin-left:4px">${claseANombre(c.clasificacion_a)}</span>`:"";
+    const inactivo=c.activo===false?'<span class="badge" style="background:#9e9e9e;color:#fff;font-size:9px;margin-left:4px">Inactivo</span>':"";
+    const contacto=[c.telefono?`📞 ${escHtml(c.telefono)}`:"",c.celular?`📱 ${escHtml(c.celular)}`:"",c.correo_electronico?`✉ ${escHtml(c.correo_electronico)}`:""].filter(Boolean).join(" &nbsp;·&nbsp; ");
+    return `<div class="fc" style="margin-bottom:10px;padding:14px 16px;cursor:pointer;transition:box-shadow .15s" onclick="eCl('${c.id}')" onmouseenter="this.style.boxShadow='0 2px 12px rgba(0,0,0,.13)'" onmouseleave="this.style.boxShadow=''">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(c.nombre)}${inactivo}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:monospace;margin-top:2px">${c.codigo||"—"}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">${erpBadge}<button class="btn bs bsm" onclick="event.stopPropagation();eCl('${c.id}')">✎ Editar</button></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px;color:#444">
+        <div><span style="color:var(--muted)">Ciudad</span> ${escHtml(c.ciudad||"—")}${c.zona?` <span style="color:var(--muted)">/ Zona</span> ${escHtml(c.zona)}`:""}</div>
+        <div><span style="color:var(--muted)">Vendedor</span> ${escHtml(c.crm_vendedores?.nombre||"—")}</div>
+        <div><span style="color:var(--muted)">Tipología</span> ${escHtml(c.crm_tipologias?.nombre||"—")}${claseABadge}</div>
+        <div><span style="color:var(--muted)">Lista precios</span> ${escHtml(c.crm_listas_precio?.nombre||"—")}</div>
+        ${c.direccion?`<div style="grid-column:1/-1"><span style="color:var(--muted)">Dirección</span> ${escHtml(c.direccion)}</div>`:""}
+        ${contacto?`<div style="grid-column:1/-1;margin-top:2px">${contacto}</div>`:""}
+      </div>
+    </div>`;
+  }).join("");
+}
 
 const CLASE_A_OPTS=[{v:"1007",l:"TAT TIENDAS Y AUTOSERVICIOS"},{v:"1008",l:"TAT RESTAURANTES"}];
 function claseANombre(code){return CLASE_A_OPTS.find(x=>x.v===code)?.l||"—"}
